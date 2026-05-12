@@ -11,7 +11,7 @@ Each notifier runs independently via Docker and targets a specific platform.
 | Notifier | Platform | README |
 | -------- | -------- | ------ |
 | GoodReads Story Notifier | [goodreads.com](https://www.goodreads.com) | [README](./GoodReadsNotifier/README.md) |
-| ScribbleHub Story Notifier | [scribblehub.com](https://www.scribblehub.com) | [README](./ScribbleHubNotifier/README.md) |
+| ScribbleHub Story Notifier | [scribblehub.com](https://www.scribblehub.com) | [README](./ScribbbleHubNotifier/README.md) |
 | Literotica Story Notifier | [literotica.com](https://www.literotica.com) | [README](./LiteroticaNotifier/README.md) |
 
 ---
