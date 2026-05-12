@@ -2,6 +2,8 @@
 
 A lightweight notifier that monitors your [ScribbleHub](https://www.scribblehub.com) reading list and sends Discord notifications when new chapters are released.
 
+> Note it only checks when the container gets ran, so to automate setup a CRON schedule or windows task scheduler.
+
 ## Features
 
 * Logs into ScribbleHub using credentials or a pre-set session cookie
