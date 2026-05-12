@@ -9,6 +9,7 @@ namespace BookNotifier
 {
 	internal class Program
 	{
+		private static Task JitterAsync(int baseMs, int minJitterMs = -500, int maxJitterMs = 500) => Task.Delay(Math.Max(0, baseMs + Random.Shared.Next(minJitterMs, maxJitterMs)));
 		public static async Task Main(string[] args)
 		{
 			CultureInfo ci = new("en-CA");
@@ -122,6 +123,8 @@ namespace BookNotifier
 						?? throw new InvalidOperationException("Login failed and PRESET_COOKIE is missing.")
 				);
 			}
+
+			await JitterAsync(1500);
 
 			List<ScribbleSaveBookRoot> currentBooks = await FileStoreService.LoadScribbleHubAsync();
 			List<ScribbleReadingListStory> readingData = await api.GetReadingList();
