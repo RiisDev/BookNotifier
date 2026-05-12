@@ -17,7 +17,7 @@ using System.Text.RegularExpressions;
 
 #pragma warning disable IDE0130
 
-namespace BookNotifier.Util;
+namespace BookNotifier.Utilities;
 
 public enum TokenKind
 {

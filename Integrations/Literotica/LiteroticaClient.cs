@@ -8,7 +8,7 @@ using LiteroticaApi.AuthClientData.DataObjects;
 using LiteroticaApi.DataObjects;
 using Activity = LiteroticaApi.AuthClientData.DataObjects.Activity;
 
-namespace BookNotifier.SiteAPIs.Literotica
+namespace BookNotifier.Integrations.Literotica
 {
 	internal class LiteroticaClient
 	{

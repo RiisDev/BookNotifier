@@ -1,9 +1,9 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using BookNotifier.Integrations.GoodReads;
+using BookNotifier.Integrations.Literotica;
+using BookNotifier.Integrations.ScribbleHub;
 using BookNotifier.Services;
-using BookNotifier.SiteAPIs.GoodReads;
-using BookNotifier.SiteAPIs.Literotica;
-using BookNotifier.SiteAPIs.ScribbleHub;
 
 namespace BookNotifier
 {
@@ -104,7 +104,7 @@ namespace BookNotifier
 
 		private static async Task RunScribbleHubAsync()
 		{
-			ScribbleClient api = new();
+			using ScribbleClient api = new();
 
 			try
 			{

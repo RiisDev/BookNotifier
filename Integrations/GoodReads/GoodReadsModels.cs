@@ -1,5 +1,5 @@
 ﻿
-namespace BookNotifier.SiteAPIs.GoodReads
+namespace BookNotifier.Integrations.GoodReads
 {
 	public sealed record GoodReadsBook
 	{

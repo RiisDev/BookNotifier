@@ -2,20 +2,18 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using BookNotifier.Util;
+using BookNotifier.Utilities;
 
-namespace BookNotifier.SiteAPIs.ScribbleHub
+namespace BookNotifier.Integrations.ScribbleHub
 {
-	public class ScribbleClient
+	public class ScribbleClient : IDisposable
 	{
 		private string _cookieString = "";
-		private static readonly CookieContainer Cookies = new();
 
 		private readonly HttpClient _client = new(new HttpClientHandler
 		{
 			AllowAutoRedirect = true,
 			AutomaticDecompression = DecompressionMethods.All,
-			CookieContainer = Cookies,
 			UseCookies = true
 		})
 		{
@@ -27,6 +25,12 @@ namespace BookNotifier.SiteAPIs.ScribbleHub
 			},
 			Timeout = TimeSpan.FromSeconds(15)
 		};
+
+		public void Dispose()
+		{
+			GC.SuppressFinalize(this);
+			_client.Dispose();
+		}
 
 		public void SetCookies(string cookieString)
 		{

@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace BookNotifier.SiteAPIs.ScribbleHub
+namespace BookNotifier.Integrations.ScribbleHub
 {
 	public record ScribbleChapter(string Title, string Link, string Id);
 

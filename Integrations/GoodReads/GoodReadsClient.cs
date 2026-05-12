@@ -1,22 +1,20 @@
-﻿using BookNotifier.Services;
-using BookNotifier.Util;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.ServiceModel.Syndication;
 using System.Xml;
+using BookNotifier.Services;
+using BookNotifier.Utilities;
 
-namespace BookNotifier.SiteAPIs.GoodReads
+namespace BookNotifier.Integrations.GoodReads
 {
 	public class GoodReadsClient : IDisposable
 	{
 
-		private static readonly CookieContainer Cookies = new();
 
 		private readonly HttpClient _client = new(new HttpClientHandler
 		{
 			AllowAutoRedirect = true,
 			AutomaticDecompression = DecompressionMethods.All,
-			CookieContainer = Cookies,
 			UseCookies = true
 		})
 		{

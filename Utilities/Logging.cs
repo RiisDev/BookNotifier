@@ -1,8 +1,8 @@
-﻿global using static BookNotifier.Utility.Logging;
+﻿global using static BookNotifier.Utilities.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace BookNotifier.Utility
+namespace BookNotifier.Utilities
 {
 	public static class Logging
 	{

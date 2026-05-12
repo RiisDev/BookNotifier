@@ -1,4 +1,4 @@
-﻿namespace BookNotifier.SiteAPIs.Literotica
+﻿namespace BookNotifier.Integrations.Literotica
 {
 	public record LiteroticaKnownData
 	{
