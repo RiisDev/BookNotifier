@@ -1,21 +1,17 @@
 ﻿using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using RawHtml;
+using BookNotifier.Util;
 
-namespace ScribbleHubNotifier.Classes
+namespace BookNotifier.SiteAPIs.ScribbleHub
 {
-	public record Chapter(string Title, string Link, string Id);
-	public record ReadingListStory(string Name, string Link, string Id, List<Chapter> Chapters);
-
-	public class ScribbleApi
+	public class ScribbleClient
 	{
-		private string CookieString = "";
+		private string _cookieString = "";
 		private static readonly CookieContainer Cookies = new();
 
-		private readonly HttpClient Client = new(new HttpClientHandler
+		private readonly HttpClient _client = new(new HttpClientHandler
 		{
 			AllowAutoRedirect = true,
 			AutomaticDecompression = DecompressionMethods.All,
@@ -35,7 +31,7 @@ namespace ScribbleHubNotifier.Classes
 		public void SetCookies(string cookieString)
 		{
 			Log("Setting cookies...");
-			CookieString = cookieString;
+			_cookieString = cookieString;
 		}
 
 		public async Task Login(string username, string password, string? referralUrl = "https://www.scribblehub.com/reading-list/")
@@ -44,7 +40,7 @@ namespace ScribbleHubNotifier.Classes
 			ArgumentException.ThrowIfNullOrWhiteSpace(password);
 			ArgumentException.ThrowIfNullOrWhiteSpace(referralUrl);
 
-			await Client.GetAsync("https://www.scribblehub.com/login/");
+			await _client.GetAsync("https://www.scribblehub.com/login/");
 			using HttpRequestMessage request = new(HttpMethod.Post, new Uri("https://www.scribblehub.com/login/"));
 
 			request.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
@@ -65,7 +61,7 @@ namespace ScribbleHubNotifier.Classes
 				{ "referral", referralUrl }
 			});
 
-			HttpResponseMessage response = await Client.SendAsync(request);
+			HttpResponseMessage response = await _client.SendAsync(request);
 			string responseContent = await response.Content.ReadAsStringAsync();
 			string headersData = JsonSerializer.Serialize(response.Headers);
 			Log($"Login Cookies -> {headersData}");
@@ -80,13 +76,13 @@ namespace ScribbleHubNotifier.Classes
 			) throw new InvalidOperationException("Captcha hit, cannot continue");
 		}
 
-		public async Task<List<ReadingListStory>> GetReadingList()
+		public async Task<List<ScribbleReadingListStory>> GetReadingList()
 		{
-			List<ReadingListStory> storyReturn = [];
+			List<ScribbleReadingListStory> storyReturn = [];
 
 			HttpRequestMessage request = new(HttpMethod.Get, "https://www.scribblehub.com/reading-list/");
-			if (!string.IsNullOrEmpty(CookieString)) request.Headers.TryAddWithoutValidation("Cookie", CookieString);
-			HttpResponseMessage response = await Client.SendAsync(request);
+			if (!string.IsNullOrEmpty(_cookieString)) request.Headers.TryAddWithoutValidation("Cookie", _cookieString);
+			HttpResponseMessage response = await _client.SendAsync(request);
 
 			Log($"Reading List Status -> ({response.StatusCode})");
 			response.EnsureSuccessStatusCode();
@@ -118,10 +114,10 @@ namespace ScribbleHubNotifier.Classes
 				}
 
 				Log($"Found Story: {title.HtmlDecode()} -> {chapterName.HtmlDecode()}");
-				storyReturn.Add(new ReadingListStory(title, storyLink, storyId, []));
+				storyReturn.Add(new ScribbleReadingListStory(title, storyLink, storyId, []));
 			}
 
-			foreach (ReadingListStory story in storyReturn)
+			foreach (ScribbleReadingListStory story in storyReturn)
 			{
 				story.Chapters.AddRange(await GetBookToc(story.Id));
 				story.Chapters.Reverse();
@@ -130,7 +126,7 @@ namespace ScribbleHubNotifier.Classes
 			return storyReturn;
 		}
 
-		public async Task<List<Chapter>> GetBookToc(string bookId)
+		public async Task<List<ScribbleChapter>> GetBookToc(string bookId)
 		{
 			
 			using HttpRequestMessage request = new(HttpMethod.Post, new Uri("https://www.scribblehub.com/wp-admin/admin-ajax.php"));
@@ -142,13 +138,13 @@ namespace ScribbleHubNotifier.Classes
 			};
 			request.Content = new FormUrlEncodedContent(formData);
 
-			HttpResponseMessage response = await Client.SendAsync(request);
+			HttpResponseMessage response = await _client.SendAsync(request);
 			string responseContent = await response.Content.ReadAsStringAsync();
 			Log($"Book TOC Status -> ({response.StatusCode})");
 			response.EnsureSuccessStatusCode();
 
 			MatchCollection chapterMatches = Regex.Matches(responseContent, "title=\"([^\"]+)\"[^>]*href=\"([^\"]+)\"");
-			List<Chapter> chapters = [];
+			List<ScribbleChapter> chapters = [];
 
 			foreach (Match match in chapterMatches)
 			{
@@ -156,7 +152,7 @@ namespace ScribbleHubNotifier.Classes
 				string link = match.Groups[2].Value.Trim().HtmlDecode();
 				string id = link[link.Trim('/').LastIndexOf('/')..].Trim('/');
 
-				chapters.Add(new Chapter(title, link, id));
+				chapters.Add(new ScribbleChapter(title, link, id));
 			}
 
 			return chapters;

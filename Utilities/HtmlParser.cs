@@ -9,6 +9,7 @@
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+
 // ReSharper disable ArrangeNamespaceBody
 // ReSharper disable IdentifierTypo
 // ReSharper disable UnusedMember.Global
@@ -16,7 +17,7 @@ using System.Text.RegularExpressions;
 
 #pragma warning disable IDE0130
 
-namespace RawHtml;
+namespace BookNotifier.Util;
 
 public enum TokenKind
 {

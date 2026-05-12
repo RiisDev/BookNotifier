@@ -1,17 +1,18 @@
-﻿using RawHtml;
+﻿using BookNotifier.Services;
+using BookNotifier.Util;
 using System.Diagnostics;
 using System.Net;
 using System.ServiceModel.Syndication;
 using System.Xml;
 
-namespace GoodReadsWatcher.MainSystems
+namespace BookNotifier.SiteAPIs.GoodReads
 {
-	public static class GoodReadsSdk
+	public class GoodReadsClient : IDisposable
 	{
 
-		public static readonly CookieContainer Cookies = new();
+		private static readonly CookieContainer Cookies = new();
 
-		public static readonly HttpClient Client = new(new HttpClientHandler
+		private readonly HttpClient _client = new(new HttpClientHandler
 		{
 			AllowAutoRedirect = true,
 			AutomaticDecompression = DecompressionMethods.All,
@@ -29,9 +30,15 @@ namespace GoodReadsWatcher.MainSystems
 			Timeout = TimeSpan.FromSeconds(15)
 		};
 
-		public static async Task<IReadOnlyList<BookDetails>> GetReadingListBooksAsync(long userId, string? shelf = null) => await GetReadingListBooksAsync(userId.ToString(), shelf);
+		public void Dispose()
+		{
+			GC.SuppressFinalize(this);
+			_client.Dispose();
+		}
 
-		public static async Task<IReadOnlyList<BookDetails>> GetReadingListBooksAsync(string userId, string? shelf = null)
+		public async Task<IReadOnlyList<GoodReadsBookDetails>> GetReadingListBooksAsync(long userId, string? shelf = null) => await GetReadingListBooksAsync(userId.ToString(), shelf);
+
+		public async Task<IReadOnlyList<GoodReadsBookDetails>> GetReadingListBooksAsync(string userId, string? shelf = null)
 		{
 			string url = $"https://www.goodreads.com/review/list_rss/{userId}" + $"{(string.IsNullOrWhiteSpace(shelf) ? string.Empty : $"?shelf={shelf}")}";
 
@@ -54,12 +61,12 @@ namespace GoodReadsWatcher.MainSystems
 				select new Uri(href!)
 			];
 
-			BookDetails[] books = await Task.WhenAll(bookUrls.Select(GetBookDetailsAsync));
+			GoodReadsBookDetails[] books = await Task.WhenAll(bookUrls.Select(GetBookDetailsAsync));
 
 			return books.AsReadOnly();
 		}
 
-		public static async Task<BookDetails> GetBookDetailsAsync(Uri url)
+		public async Task<GoodReadsBookDetails> GetBookDetailsAsync(Uri url)
 		{
 			string html = await GetStringWithRetryAsync(url);
 
@@ -73,11 +80,11 @@ namespace GoodReadsWatcher.MainSystems
 				.GetElementsByTagName("a")
 				.FirstOrDefault();
 
-			Series? series = null;
+			GoodReadsSeries? series = null;
 
 			if (seriesAnchor is not null)
 			{
-				series = new Series
+				series = new GoodReadsSeries
 				{
 					Id = Guid.NewGuid(),
 					Name = seriesAnchor.TextContent.Trim(),
@@ -99,7 +106,7 @@ namespace GoodReadsWatcher.MainSystems
 				throw new InvalidOperationException("Could not parse author.");
 			}
 
-			Author author = new()
+			GoodReadsAuthor author = new()
 			{
 				Id = Guid.NewGuid(),
 				Name = authorNameSpan.TextContent.Trim(),
@@ -113,7 +120,7 @@ namespace GoodReadsWatcher.MainSystems
 			string title = titleElement?.TextContent.Trim()
 				?? url.Segments.Last();
 
-			Book book = new()
+			GoodReadsBook book = new()
 			{
 				Id = Guid.NewGuid(),
 				Title = title,
@@ -122,7 +129,7 @@ namespace GoodReadsWatcher.MainSystems
 				SeriesId = series?.Id
 			};
 
-			BookDetails details = new()
+			GoodReadsBookDetails details = new()
 			{
 				Book = book,
 				Author = author,
@@ -137,7 +144,7 @@ namespace GoodReadsWatcher.MainSystems
 			return details;
 		}
 
-		public static async Task<BookDetails> GetBookSeriesDetails(BookDetails details)
+		public async Task<GoodReadsBookDetails> GetBookSeriesDetails(GoodReadsBookDetails details)
 		{
 			if (details.Series is null)
 			{
@@ -148,7 +155,7 @@ namespace GoodReadsWatcher.MainSystems
 
 			HtmlDocument doc = HtmlDocument.Parse(html);
 
-			List<SeriesBook> books = [];
+			List<GoodReadsSeriesBook> books = [];
 
 			HashSet<string> seen = [];
 
@@ -176,7 +183,7 @@ namespace GoodReadsWatcher.MainSystems
 				if (string.IsNullOrWhiteSpace(title)) continue;
 				if (title.Length < 2) continue;
 
-				books.Add(new SeriesBook
+				books.Add(new GoodReadsSeriesBook
 				{
 					Title = title,
 					Url = new Uri(normalizedUrl),
@@ -190,7 +197,7 @@ namespace GoodReadsWatcher.MainSystems
 					!book.Title.Contains("More books"))
 				.ToList();
 
-			Series updatedSeries = details.Series with
+			GoodReadsSeries updatedSeries = details.Series with
 			{
 				Books = books.AsReadOnly()
 			};
@@ -201,13 +208,13 @@ namespace GoodReadsWatcher.MainSystems
 			};
 		}
 
-		public static async Task<List<Book>> GetAuthorsBooks(Uri authorUrl)
+		public async Task<List<GoodReadsBook>> GetAuthorsBooks(Uri authorUrl)
 		{
 			string html = await GetStringWithRetryAsync(authorUrl);
 
 			HtmlDocument doc = HtmlDocument.Parse(html);
 
-			List<Book> books = [];
+			List<GoodReadsBook> books = [];
 
 			HashSet<string> seen = [];
 
@@ -277,14 +284,14 @@ namespace GoodReadsWatcher.MainSystems
 				string? authorHref =
 					authorAnchor?.GetAttribute("href");
 
-				Author author = new()
+				GoodReadsAuthor author = new()
 				{
 					Id = Guid.NewGuid(),
 					Name = authorName,
 					Url = new Uri(authorHref ?? authorUrl.ToString())
 				};
 
-				Book book = new()
+				GoodReadsBook book = new()
 				{
 					Id = Guid.NewGuid(),
 					Title = title,
@@ -298,18 +305,18 @@ namespace GoodReadsWatcher.MainSystems
 			return books;
 		}
 
-		private static async Task<string> GetStringWithRetryAsync(Uri url, int maxRetries = 5,
+		private async Task<string> GetStringWithRetryAsync(Uri url, int maxRetries = 5,
 			CancellationToken cancellationToken = default) =>
 			await GetStringWithRetryAsync(url.AbsoluteUri, maxRetries, cancellationToken);
 
-		private static async Task<string> GetStringWithRetryAsync(string url, int maxRetries = 5, CancellationToken cancellationToken = default)
+		private async Task<string> GetStringWithRetryAsync(string url, int maxRetries = 5, CancellationToken cancellationToken = default)
 		{
 			for (int attempt = 1; ; attempt++)
 			{
 				try
 				{
 					using HttpResponseMessage response =
-						await Client.GetAsync(url, cancellationToken);
+						await _client.GetAsync(url, cancellationToken);
 
 					if (response.StatusCode is HttpStatusCode.ServiceUnavailable or (HttpStatusCode)429)
 					{
@@ -350,6 +357,86 @@ namespace GoodReadsWatcher.MainSystems
 				}
 			}
 		}
+
+		public async Task RunAsync(IReadOnlyList<GoodReadsBookDetails> readingListData, Dictionary<string, List<GoodReadsBook>> authorBooks)
+		{
+			HashSet<string> knownBooks = await FileStoreService.LoadGoodReadsKnownBooksAsync();
+
+			bool isFirstRun = knownBooks.Count == 0;
+
+			List<GoodReadsKnownBook> updatedKnownBooks = [];
+
+			foreach (GoodReadsBookDetails details in readingListData)
+			{
+				GoodReadsAuthor author = details.Author;
+
+				if (!authorBooks.TryGetValue(author.Name, out List<GoodReadsBook>? books))
+				{
+					continue;
+				}
+
+
+				foreach (GoodReadsBook book in books)
+				{
+					GoodReadsKnownBook knownBook = new()
+					{
+						Title = book.Title,
+						AuthorName = author.Name,
+						Url = book.Url.ToString(),
+						SeriesName = null,
+						SeriesPosition = null
+					};
+
+					string key = FileStoreService.CreateGoodReadsKey(knownBook);
+
+					if (!knownBooks.Contains(key))
+					{
+						if (!isFirstRun)
+							await NotificationService.SendNewGoodReadsAuthorBookAsync(author.Name, book.Title, book.Url.ToString());
+
+						knownBooks.Add(key);
+					}
+
+					updatedKnownBooks.Add(knownBook);
+				}
+				
+				if (details.Series is not null)
+				{
+					foreach (GoodReadsSeriesBook seriesBook in details.Series.Books)
+					{
+						GoodReadsKnownBook knownSeriesBook = new()
+						{
+							Title = seriesBook.Title,
+							AuthorName = author.Name,
+							Url = seriesBook.Url.ToString(),
+							SeriesName = details.Series.Name,
+							SeriesPosition = seriesBook.Position
+						};
+
+						string key = FileStoreService.CreateGoodReadsKey(knownSeriesBook);
+
+						if (!knownBooks.Contains(key))
+						{
+							if (!isFirstRun)
+								await NotificationService.SendNewGoodReadsSeriesBookAsync(
+									author.Name,
+									seriesBook.Title,
+									seriesBook.Url.ToString(),
+									details.Series.Name,
+									seriesBook.Position.ToString()
+								);
+
+							knownBooks.Add(key);
+						}
+
+						updatedKnownBooks.Add(knownSeriesBook);
+					}
+				}
+			}
+
+			await FileStoreService.SaveGoodReadsKnownBooksAsync(updatedKnownBooks);
+		}
 	}
+
 }
 

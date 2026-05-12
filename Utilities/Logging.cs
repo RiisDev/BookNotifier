@@ -1,24 +1,13 @@
-﻿global using static ScribbleHubNotifier.Classes.Globals;
+﻿global using static BookNotifier.Utility.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 
-namespace ScribbleHubNotifier.Classes
+namespace BookNotifier.Utility
 {
-	public static class Globals
+	public static class Logging
 	{
-		public static JsonSerializerOptions JsonOptions = new()
-		{
-			AllowTrailingCommas = true,
-			Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-			WriteIndented = true,
-			IndentCharacter = '\t',
-			IndentSize = 1
-		};
-
 		private static readonly Lock LogLock = new();
-		private static string LogDirectory => Path.Combine(AppContext.BaseDirectory, "log.txt");
+		private static string LogDirectory => Path.Combine(AppContext.BaseDirectory, "data", "log.txt");
 
 		public static void Log(string message, [CallerMemberName] string caller = "", [CallerFilePath] string filePath = "")
 		{

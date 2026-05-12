@@ -1,5 +1,3 @@
 <Solution>
-  <Project Path="GoodReadsNotifier/GoodReadsWatcher.csproj" />
-  <Project Path="LiteroticaNotifier/LiteroticaWatcher.csproj" />
-  <Project Path="ScribbbleHubNotifier/ScribbleHubNotifier.csproj" />
+  <Project Path="BookNotifier.csproj" Id="f5d6aafd-62f9-407c-bd83-d587e600f4ac" />
 </Solution>
