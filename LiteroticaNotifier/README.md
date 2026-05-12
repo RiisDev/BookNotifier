@@ -1,5 +1,10 @@
 # Literotica Story Notifier
 
+![License](https://img.shields.io/github/license/RiisDev/BookNotifier)
+![Build](https://img.shields.io/github/actions/workflow/status/RiisDev/BookNotifier/docker-publish.yml?label=docker%20build)
+![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/literotica-notifier/latest_tag?label=latest)
+![Image Size](https://ghcr-badge.egpl.dev/RiisDev/literotica-notifier/size)
+
 A lightweight notifier that checks for new stories from your favorite authors on [Literotica](https://literotica.com) and sends updates to a webhook.
 
 ## Features
@@ -21,12 +26,16 @@ A lightweight notifier that checks for new stories from your favorite authors on
 
 ## 🚀 Setup
 
-### 1. Clone the Repository
+### 1. Clone the Repository or pull the image
 
 ```bash
 git clone https://github.com/RiisDev/BookNotifier.git
 cd BookNotifier
 cd LiteroticaNotifier
+```
+
+```bash
+docker pull ghcr.io/RiisDev/literotica-notifier:latest
 ```
 
 ### 2. Create a `.env` file
@@ -52,6 +61,20 @@ docker run -d \
   -v $(pwd)/data:/app/data \
   literotica-notifier
 ```
+
+Or build from source:
+
+```bash
+git clone https://github.com/RiisDev/BookNotifier.git
+cd BookNotifier
+docker build -t literotica-notifier ./ScribbbleHubNotifier
+docker run -d \
+  --name literotica-notifier \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  literotica-notifier
+```
+
 
 ---
 

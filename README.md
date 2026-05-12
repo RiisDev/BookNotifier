@@ -1,18 +1,35 @@
-# Story Notifiers
+# Book Notifier
+
+![License](https://img.shields.io/github/license/RiisDev/BookNotifier)
+![Last Commit](https://img.shields.io/github/last-commit/RiisDev/BookNotifier)
+![Build](https://img.shields.io/github/actions/workflow/status/RiisDev/BookNotifier/docker-publish.yml?label=docker%20build)
+![Language](https://img.shields.io/github/languages/top/RiisDev/BookNotifier)
 
 A collection of lightweight, self-hosted notifiers that monitor your reading lists across various fiction platforms and send Discord notifications when new content is released.
 
-Each notifier runs independently via Docker and targets a specific platform.
+Each notifier runs independently via Docker, targets a specific platform, and requires only a `.env` file and a Discord webhook to get started.
 
 ---
 
 ## 📚 Notifiers
 
-| Notifier | Platform | README |
-| -------- | -------- | ------ |
-| GoodReads Story Notifier | [goodreads.com](https://www.goodreads.com) | [README](./GoodReadsNotifier/README.md) |
-| ScribbleHub Story Notifier | [scribblehub.com](https://www.scribblehub.com) | [README](./ScribbbleHubNotifier/README.md) |
-| Literotica Story Notifier | [literotica.com](https://www.literotica.com) | [README](./LiteroticaNotifier/README.md) |
+| Notifier | Platform | Image | Size | README |
+| -------- | -------- | ----- | ---- | ------ |
+| GoodReads Notifier | [goodreads.com](https://www.goodreads.com) | ![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/goodreads-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/RiisDev/goodreads-notifier/size) | [README](./GoodReadsNotifier/README.md) |
+| ScribbleHub Notifier | [scribblehub.com](https://www.scribblehub.com) | ![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/scribblehub-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/RiisDev/scribblehub-notifier/size) | [README](./ScribbbleHubNotifier/README.md) |
+| Literotica Notifier | [literotica.com](https://www.literotica.com) | ![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/literotica-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/RiisDev/literotica-notifier/size) | [README](./LiteroticaNotifier/README.md) |
+
+---
+
+## 🐳 Pulling Images
+
+All images are published to the GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/RiisDev/goodreads-notifier:latest
+docker pull ghcr.io/RiisDev/scribblehub-notifier:latest
+docker pull ghcr.io/RiisDev/literotica-notifier:latest
+```
 
 ---
 

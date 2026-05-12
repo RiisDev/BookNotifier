@@ -1,5 +1,10 @@
 # GoodReads Story Notifier
 
+![License](https://img.shields.io/github/license/RiisDev/BookNotifier)
+![Build](https://img.shields.io/github/actions/workflow/status/RiisDev/BookNotifier/docker-publish.yml?label=docker%20build)
+![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/goodreads-notifier/latest_tag?label=latest)
+![Image Size](https://ghcr-badge.egpl.dev/RiisDev/goodreads-notifier/size)
+
 A lightweight notifier that checks for new books from authors on your [GoodReads](https://goodreads.com) reading shelf and sends updates to a webhook.
 
 > Note it only checks when the container gets ran, so to automate setup a CRON schedule or windows task scheduler.
@@ -24,7 +29,11 @@ A lightweight notifier that checks for new books from authors on your [GoodReads
 
 ## 🚀 Setup
 
-### 1. Clone the Repository
+### 1. Clone the Repository or pull existing
+
+```bash
+docker pull ghcr.io/RiisDev/goodreads-notifier:latest
+```
 
 ```bash
 git clone https://github.com/RiisDev/BookNotifier.git
@@ -55,6 +64,16 @@ docker run -d \
   --env-file .env \
   -v $(pwd)/data:/app/data \
   goodreads-notifier
+```
+
+Or run built variant
+
+```bash
+docker run -d \
+  --name goodreads-notifier \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  ghcr.io/RiisDev/goodreads-notifier:latest
 ```
 
 ---

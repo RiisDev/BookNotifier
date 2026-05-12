@@ -1,5 +1,10 @@
 # ScribbleHub Story Notifier
 
+![License](https://img.shields.io/github/license/RiisDev/BookNotifier)
+![Build](https://img.shields.io/github/actions/workflow/status/RiisDev/BookNotifier/docker-publish.yml?label=docker%20build)
+![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/scribblehub-notifier/latest_tag?label=latest)
+![Image Size](https://ghcr-badge.egpl.dev/RiisDev/scribblehub-notifier/size)
+
 A lightweight notifier that monitors your [ScribbleHub](https://www.scribblehub.com) reading list and sends Discord notifications when new chapters are released.
 
 > Note it only checks when the container gets ran, so to automate setup a CRON schedule or windows task scheduler.
@@ -25,12 +30,16 @@ A lightweight notifier that monitors your [ScribbleHub](https://www.scribblehub.
 
 ## 🚀 Setup
 
-### 1. Clone the Repository
+### 1. Clone the Repository or pull the image
 
 ```bash
 git clone https://github.com/RiisDev/BookNotifier.git
 cd BookNotifier
 cd ScribbbleHubNotifier
+```
+
+```bash
+docker pull ghcr.io/RiisDev/scribblehub-notifier:latest
 ```
 
 ### 2. Create a `.env` File
@@ -56,6 +65,19 @@ PRESET_COOKIE=your_session_cookie_string
 
 ```bash
 docker build -t scribblehub-notifier .
+docker run -d \
+  --name scribblehub-notifier \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  scribblehub-notifier
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/RiisDev/BookNotifier.git
+cd BookNotifier
+docker build -t scribblehub-notifier ./ScribbbleHubNotifier
 docker run -d \
   --name scribblehub-notifier \
   --env-file .env \
