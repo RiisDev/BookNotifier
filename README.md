@@ -1,9 +1,9 @@
 # Book Notifier
 
-![License](https://img.shields.io/github/license/yourusername/BookNotifier)
-![Last Commit](https://img.shields.io/github/last-commit/yourusername/BookNotifier)
-![Build](https://img.shields.io/github/actions/workflow/status/yourusername/BookNotifier/docker-publish.yml?label=docker%20build)
-![Language](https://img.shields.io/github/languages/top/yourusername/BookNotifier)
+![License](https://img.shields.io/github/license/RiisDev/BookNotifier)
+![Last Commit](https://img.shields.io/github/last-commit/RiisDev/BookNotifier)
+![Build](https://img.shields.io/github/actions/workflow/status/RiisDev/BookNotifier/docker-publish.yml?label=docker%20build)
+![Language](https://img.shields.io/github/languages/top/RiisDev/BookNotifier)
 ![Image Tag](https://ghcr-badge.egpl.dev/riisdev/book-notifier/latest_tag?label=latest)
 ![Image Size](https://ghcr-badge.egpl.dev/riisdev/book-notifier/size)
 
