@@ -170,11 +170,7 @@ namespace BookNotifier
 			Dictionary<string, string> vars = [];
 			string envPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".env");
 
-			if (!File.Exists(envPath))
-			{
-				Variables = vars;
-				return;
-			}
+			if (!File.Exists(envPath)) { Variables = vars; return; }
 
 			foreach (string line in File.ReadAllLines(envPath))
 			{
