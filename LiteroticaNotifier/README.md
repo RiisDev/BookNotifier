@@ -2,8 +2,8 @@
 
 ![License](https://img.shields.io/github/license/RiisDev/BookNotifier)
 ![Build](https://img.shields.io/github/actions/workflow/status/RiisDev/BookNotifier/docker-publish.yml?label=docker%20build)
-![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/literotica-notifier/latest_tag?label=latest)
-![Image Size](https://ghcr-badge.egpl.dev/RiisDev/literotica-notifier/size)
+![Image Tag](https://ghcr-badge.egpl.dev/riisdev/literotica-notifier/latest_tag?label=latest)
+![Image Size](https://ghcr-badge.egpl.dev/riisdev/literotica-notifier/size)
 
 A lightweight notifier that checks for new stories from your favorite authors on [Literotica](https://literotica.com) and sends updates to a webhook.
 
@@ -35,7 +35,7 @@ cd LiteroticaNotifier
 ```
 
 ```bash
-docker pull ghcr.io/RiisDev/literotica-notifier:latest
+docker pull ghcr.io/riisdev/literotica-notifier:latest
 ```
 
 ### 2. Create a `.env` file
@@ -75,7 +75,6 @@ docker run -d \
   literotica-notifier
 ```
 
-
 ---
 
 ## 🛠 Configuration
@@ -86,9 +85,10 @@ docker run -d \
 | `LIT_USERNAME` | Your Literotica username (used to pull favorite authors) |
 | `RECHECK_MS`   | Interval in milliseconds to check for new stories        |
 
-| Volume       | Description                                              |
+| Volume         |   Description                                              |
 | -------------- | -------------------------------------------------------- |
-| `/app/data`      |  This stores the story cache/database to compare to |
+| `/app/data`    |  This stores the story cache/database to compare to |
+
 ---
 
 ## 📝 Notes

@@ -9,7 +9,27 @@ env:
   OWNER: ${{ github.repository_owner }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      goodreads: ${{ steps.filter.outputs.goodreads }}
+      scribblehub: ${{ steps.filter.outputs.scribblehub }}
+      literotica: ${{ steps.filter.outputs.literotica }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            goodreads:
+              - 'GoodReadsNotifier/**'
+            scribblehub:
+              - 'ScribbbleHubNotifier/**'
+            literotica:
+              - 'LiteroticaNotifier/**'
+
   build-and-push:
+    needs: changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -20,14 +40,16 @@ jobs:
         include:
           - name: goodreads-notifier
             context: ./GoodReadsNotifier
-          - name: literotica-notifier
-            context: ./LiteroticaNotifier
+            changed: ${{ needs.changes.outputs.goodreads }}
           - name: scribblehub-notifier
             context: ./ScribbbleHubNotifier
+            changed: ${{ needs.changes.outputs.scribblehub }}
+          - name: literotica-notifier
+            context: ./LiteroticaNotifier
+            changed: ${{ needs.changes.outputs.literotica }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -46,6 +68,7 @@ jobs:
             type=sha,prefix=sha-
 
       - name: Build and push
+        if: ${{ matrix.changed == 'true' }}
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}

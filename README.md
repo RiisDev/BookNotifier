@@ -15,9 +15,9 @@ Each notifier runs independently via Docker, targets a specific platform, and re
 
 | Notifier | Platform | Image | Size | README |
 | -------- | -------- | ----- | ---- | ------ |
-| GoodReads Notifier | [goodreads.com](https://www.goodreads.com) | ![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/goodreads-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/RiisDev/goodreads-notifier/size) | [README](./GoodReadsNotifier/README.md) |
-| ScribbleHub Notifier | [scribblehub.com](https://www.scribblehub.com) | ![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/scribblehub-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/RiisDev/scribblehub-notifier/size) | [README](./ScribbbleHubNotifier/README.md) |
-| Literotica Notifier | [literotica.com](https://www.literotica.com) | ![Image Tag](https://ghcr-badge.egpl.dev/RiisDev/literotica-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/RiisDev/literotica-notifier/size) | [README](./LiteroticaNotifier/README.md) |
+| GoodReads Notifier | [goodreads.com](https://www.goodreads.com) | ![Image Tag](https://ghcr-badge.egpl.dev/riisdev/goodreads-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/riisdev/goodreads-notifier/size) | [README](./GoodReadsNotifier/README.md) |
+| ScribbleHub Notifier | [scribblehub.com](https://www.scribblehub.com) | ![Image Tag](https://ghcr-badge.egpl.dev/riisdev/scribblehub-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/riisdev/scribblehub-notifier/size) | [README](./ScribbbleHubNotifier/README.md) |
+| Literotica Notifier | [literotica.com](https://www.literotica.com) | ![Image Tag](https://ghcr-badge.egpl.dev/riisdev/literotica-notifier/latest_tag?label=latest) | ![Image Size](https://ghcr-badge.egpl.dev/riisdev/literotica-notifier/size) | [README](./LiteroticaNotifier/README.md) |
 
 ---
 
@@ -26,9 +26,9 @@ Each notifier runs independently via Docker, targets a specific platform, and re
 All images are published to the GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/RiisDev/goodreads-notifier:latest
-docker pull ghcr.io/RiisDev/scribblehub-notifier:latest
-docker pull ghcr.io/RiisDev/literotica-notifier:latest
+docker pull ghcr.io/riisdev/goodreads-notifier:latest
+docker pull ghcr.io/riisdev/scribblehub-notifier:latest
+docker pull ghcr.io/riisdev/literotica-notifier:latest
 ```
 
 ---
