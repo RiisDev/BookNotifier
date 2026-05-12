@@ -3,8 +3,6 @@ name: Publish Docker Image
 on:
   push:
     branches: [main]
-    paths:
-      - 'BookNotifier/**'
 
 env:
   REGISTRY: ghcr.io
