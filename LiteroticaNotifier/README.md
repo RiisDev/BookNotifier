@@ -24,8 +24,9 @@ A lightweight notifier that checks for new stories from your favorite authors on
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/literotica-story-notifier.git
-cd literotica-story-notifier
+git clone https://github.com/RiisDev/BookNotifier.git
+cd BookNotifier
+cd LiteroticaNotifier
 ```
 
 ### 2. Create a `.env` file
