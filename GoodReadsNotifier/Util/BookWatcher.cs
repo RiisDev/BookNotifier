@@ -6,8 +6,9 @@ namespace GoodReadsWatcher.Util
 	{
 		public static async Task RunAsync(IReadOnlyList<BookDetails> readingListData, Dictionary<string, List<Book>> authorBooks)
 		{
-			HashSet<string> knownBooks =
-				await FileStore.LoadKnownBooksAsync();
+			HashSet<string> knownBooks = await FileStore.LoadKnownBooksAsync();
+
+			bool isFirstRun = knownBooks.Count == 0;
 
 			List<KnownBook> updatedKnownBooks = [];
 
@@ -39,9 +40,8 @@ namespace GoodReadsWatcher.Util
 
 					if (!knownBooks.Contains(key))
 					{
-						await NotificationService.SendNewAuthorBookAsync(
-							author,
-							book);
+						if (!isFirstRun)
+							await NotificationService.SendNewAuthorBookAsync(author, book);
 
 						knownBooks.Add(key);
 					}
@@ -71,9 +71,8 @@ namespace GoodReadsWatcher.Util
 
 						if (!knownBooks.Contains(key))
 						{
-							await NotificationService.SendNewSeriesBookAsync(
-								details,
-								seriesBook);
+							if (!isFirstRun)
+								await NotificationService.SendNewSeriesBookAsync(details, seriesBook);
 
 							knownBooks.Add(key);
 						}
