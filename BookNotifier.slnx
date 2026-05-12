@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="GoodReadsNotifer/GoodReadsWatcher.csproj" />
+  <Project Path="LiteroticaWatcher/LiteroticaWatcher.csproj" />
+  <Project Path="ScribbbleHubNotifier/ScribbleHubNotifier.csproj" />
+</Solution>
