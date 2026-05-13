@@ -18,4 +18,18 @@ namespace BookNotifier.Integrations.ScribbleHub
 		[property: JsonPropertyName("Id")] string Id,
 		[property: JsonPropertyName("Chapters")] IReadOnlyList<ScribbleSaveChapter> Chapters
 	);
+
+	public record FlareSolverCookie(
+		[property: JsonPropertyName("name")] string Name,
+		[property: JsonPropertyName("value")] string Value,
+		[property: JsonPropertyName("expires")] double? Expires
+	);
+
+	public record FlareSolver(
+		[property: JsonPropertyName("solution")] FlareSolverSolution Solution
+	);
+
+	public record FlareSolverSolution(
+		[property: JsonPropertyName("cookies")] IReadOnlyList<FlareSolverCookie> Cookies
+	);
 }

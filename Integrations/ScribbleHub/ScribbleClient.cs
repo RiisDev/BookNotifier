@@ -1,14 +1,16 @@
-﻿using System.Net;
+﻿using BookNotifier.Utilities;
+using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using BookNotifier.Utilities;
 
 namespace BookNotifier.Integrations.ScribbleHub
 {
 	public class ScribbleClient : IDisposable
 	{
 		private string _cookieString = "";
+
 
 		private readonly HttpClient _client = new(new HttpClientHandler
 		{
@@ -20,7 +22,10 @@ namespace BookNotifier.Integrations.ScribbleHub
 			DefaultRequestHeaders =
 			{
 				{
-					"User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0 ScribbleHubNotifier/1.0"
+					"User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+				},
+				{
+					"Accept-Language", "en-US,en;q=0.9"
 				}
 			},
 			Timeout = TimeSpan.FromSeconds(15)
@@ -45,18 +50,15 @@ namespace BookNotifier.Integrations.ScribbleHub
 			ArgumentException.ThrowIfNullOrWhiteSpace(referralUrl);
 
 			await _client.GetAsync("https://www.scribblehub.com/login/");
+
 			using HttpRequestMessage request = new(HttpMethod.Post, new Uri("https://www.scribblehub.com/login/"));
 
-			request.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
-			request.Headers.TryAddWithoutValidation("sec-ch-ua", "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Brave\";v=\"146\"");
-			request.Headers.TryAddWithoutValidation("sec-ch-ua-arch", "\"x86\"");
-			request.Headers.TryAddWithoutValidation("sec-ch-ua-bitness", "\"64\"");
-			request.Headers.TryAddWithoutValidation("sec-ch-ua-full-version-list", "\"Chromium\";v=\"146.0.0.0\", \"Not-A.Brand\";v=\"24.0.0.0\", \"Brave\";v=\"146.0.0.0\"");
-			request.Headers.TryAddWithoutValidation("sec-ch-ua-mobile", "?0");
-			request.Headers.TryAddWithoutValidation("sec-ch-ua-model", "\"\"");
-			request.Headers.TryAddWithoutValidation("sec-ch-ua-platform", "\"Windows\"");
-			request.Headers.TryAddWithoutValidation("sec-ch-ua-platform-version", "\"19.0.0\"");
+			FlareSolverCookie? cookie = await GetCfClearance();
+			if (cookie is null) LogError("Failed to get cf_clearance");
+			else request.Headers.TryAddWithoutValidation("Cookie", $"cf_clearance={cookie.Value}");
 
+			request.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
+			
 			request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
 			{
 				{ "reg_username", username },
@@ -161,5 +163,41 @@ namespace BookNotifier.Integrations.ScribbleHub
 
 			return chapters;
 		}
+
+		private async Task<FlareSolverCookie?> GetCfClearance()
+		{
+			try
+			{
+				string? flareSolver = Environment.GetEnvironmentVariable("FLARESOLVER_URL");
+
+				if (string.IsNullOrEmpty(flareSolver))
+					throw new InvalidOperationException("Missing flaresolver url variable");
+
+				Dictionary<string, object> postData = new()
+				{
+					{ "cmd", "request.get" },
+					{ "url", "https://www.scribblehub.com/login/" },
+					{ "disableMedia", true },
+					{ "returnOnlyCookies", true },
+					{ "maxTimeout", 30_000 }
+				};
+
+				HttpResponseMessage data = await _client.PostAsJsonAsync(flareSolver, postData);
+				data.EnsureSuccessStatusCode();
+
+				FlareSolver? flareData = await data.Content.ReadFromJsonAsync<FlareSolver>();
+
+				return flareData is null
+					? throw new InvalidOperationException("idk")
+					: flareData.Solution.Cookies.First(x => x.Name == "cf_clearance");
+			}
+			catch (Exception ex)
+			{
+				LogError("GetCf Failed with: {Exception}", ex.ToString());
+			}
+
+			return null;
+		}
+
 	}
 }

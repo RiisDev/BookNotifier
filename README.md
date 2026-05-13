@@ -113,6 +113,7 @@ docker run -d \
 | `USERNAME`              | Your ScribbleHub username                                                   |
 | `PASSWORD`              | Your ScribbleHub password                                                   |
 | `PRESET_COOKIE`         | Pre-authenticated session cookie — used as fallback if login hits a CAPTCHA |
+| `FLARESOLVER_URL`       | The url of a locally instanced FlareSolverr to fix login issues             |
 
 ### Literotica
 
