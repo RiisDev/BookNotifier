@@ -1,8 +1,8 @@
 ﻿using System.Text.Encodings.Web;
 using System.Text.Json;
+using BookNotifier.Integrations;
 using BookNotifier.Integrations.GoodReads;
 using BookNotifier.Integrations.Literotica;
-using BookNotifier.Integrations.ScribbleHub;
 
 namespace BookNotifier.Services
 {

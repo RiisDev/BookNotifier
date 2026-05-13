@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="BookNotifier.csproj" Id="f5d6aafd-62f9-407c-bd83-d587e600f4ac" />
+  <Project Path="Integrations/ScribbleHub.Project/ScribbleHub.Project.csproj" Id="f1ecac9d-2665-45a3-a746-b6bd37a9656c" />
 </Solution>

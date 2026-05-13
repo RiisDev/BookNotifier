@@ -1,15 +1,13 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using BookNotifier.Integrations.GoodReads;
+﻿using BookNotifier.Integrations.GoodReads;
 using BookNotifier.Integrations.Literotica;
-using BookNotifier.Integrations.ScribbleHub;
-using BookNotifier.Services;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace BookNotifier
 {
 	internal class Program
 	{
-		private static Task JitterAsync(int baseMs, int minJitterMs = -500, int maxJitterMs = 500) => Task.Delay(Math.Max(0, baseMs + Random.Shared.Next(minJitterMs, maxJitterMs)));
 		public static async Task Main(string[] args)
 		{
 			CultureInfo ci = new("en-CA");
@@ -105,50 +103,38 @@ namespace BookNotifier
 
 		private static async Task RunScribbleHubAsync()
 		{
-			using ScribbleClient api = new();
-
-			try
+			using Process process = new();
+			process.StartInfo = new ProcessStartInfo
 			{
-				await api.Login(
-					Environment.GetEnvironmentVariable("USERNAME")
-						?? throw new InvalidOperationException("Missing USERNAME environment variable."),
-					Environment.GetEnvironmentVariable("PASSWORD")
-						?? throw new InvalidOperationException("Missing PASSWORD environment variable.")
-				);
-			}
-			catch
+				FileName = "dotnet",
+				Arguments = "ScribbleHub.Project.dll",
+				WorkingDirectory = AppContext.BaseDirectory,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				UseShellExecute = false,
+				CreateNoWindow = true
+			};
+
+			process.OutputDataReceived += (_, args) =>
 			{
-				api.SetCookies(
-					Environment.GetEnvironmentVariable("PRESET_COOKIE")
-						?? throw new InvalidOperationException("Login failed and PRESET_COOKIE is missing.")
-				);
-			}
+				if (!string.IsNullOrEmpty(args.Data))
+					Log($"[ScribbleHub.Project] {args.Data}");
+			};
 
-			await JitterAsync(1500);
-
-			List<ScribbleSaveBookRoot> currentBooks = await FileStoreService.LoadScribbleHubAsync();
-			List<ScribbleReadingListStory> readingData = await api.GetReadingList();
-			await FileStoreService.SaveScribbleHubAsync(readingData);
-
-			foreach (ScribbleReadingListStory story in readingData)
+			process.ErrorDataReceived += (_, args) =>
 			{
-				ScribbleSaveBookRoot? cachedStory = currentBooks.FirstOrDefault(x => x.Id == story.Id);
+				if (!string.IsNullOrEmpty(args.Data))
+					LogError($"[ScribbleHub.Project] {args.Data}");
+			};
 
-				if (cachedStory is null)
-				{
-					Log($"[scribblehub] New story: {story.Name} -> {story.Chapters.Count} chapters");
-					await NotificationService.SendNewScribbleStoryAsync(story.Name, story.Link);
-					continue;
-				}
+			process.Start();
+			process.BeginOutputReadLine();
+			process.BeginErrorReadLine();
 
-				ScribbleChapter latestCurrentChapter = story.Chapters[^1];
-				ScribbleSaveChapter latestCachedChapter = cachedStory.Chapters[^1];
+			await process.WaitForExitAsync();
 
-				if (latestCurrentChapter.Id == latestCachedChapter.Id) continue;
-
-				Log($"[scribblehub] New chapter: {story.Name} -> {latestCurrentChapter.Title}");
-				await NotificationService.SendNewScribbleChapterAsync(story.Name, story.Link, latestCurrentChapter.Title, latestCurrentChapter.Link);
-			}
+			if (process.ExitCode != 0)
+				LogError($"[ScribbleHub.Project] Exited with code {process.ExitCode}");
 		}
 
 		private static Task RunLiteroticaAsync()

@@ -1,11 +1,12 @@
-﻿using BookNotifier.Utilities;
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using BookNotifier.Integrations;
+using BookNotifier.Utilities;
 
-namespace BookNotifier.Integrations.ScribbleHub
+namespace ScribbleHub.Project
 {
 	public class ScribbleClient : IDisposable
 	{
