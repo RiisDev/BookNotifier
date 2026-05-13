@@ -56,6 +56,7 @@ SCRIBBLEHUB_RECHECK_MS=60000
 USERNAME=your_scribblehub_username
 PASSWORD=your_scribblehub_password
 PRESET_COOKIE=your_session_cookie  # fallback if login hits a CAPTCHA
+FLARESOLVER_URL=your_flaresolver_url
 
 # ---- Literotica ----
 LITEROTICA_RECHECK_MS=600000
