@@ -17,7 +17,7 @@ namespace BookNotifier.Integrations.RoyalRoad
 			[property: JsonPropertyName("url")] string Url
 		);
 
-		private static readonly HttpClient Client = new(new HttpClientHandler
+		private readonly HttpClient _client = new(new HttpClientHandler
 		{
 			AllowAutoRedirect = true,
 			AutomaticDecompression = DecompressionMethods.All,
@@ -38,7 +38,7 @@ namespace BookNotifier.Integrations.RoyalRoad
 		public void Dispose()
 		{
 			GC.SuppressFinalize(this);
-			Client.Dispose();
+			_client.Dispose();
 		}
 
 		public async Task RunAsync()
@@ -136,7 +136,7 @@ namespace BookNotifier.Integrations.RoyalRoad
 			List<string> favourites = [];
 
 			using HttpRequestMessage request = new(HttpMethod.Get, $"https://www.royalroad.com/profile/{userId}/favorites?page={page}");
-			using HttpResponseMessage response = await Client.SendAsync(request);
+			using HttpResponseMessage response = await _client.SendAsync(request);
 
 			string responseContent = await response.Content.ReadAsStringAsync();
 
@@ -173,7 +173,7 @@ namespace BookNotifier.Integrations.RoyalRoad
 		private async Task<RoyalRoadBook?> GetBookAsync(string url)
 		{
 			using HttpRequestMessage request = new(HttpMethod.Get, url);
-			using HttpResponseMessage response = await Client.SendAsync(request);
+			using HttpResponseMessage response = await _client.SendAsync(request);
 
 			string responseContent = await response.Content.ReadAsStringAsync();
 
