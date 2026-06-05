@@ -34,13 +34,13 @@ namespace BookNotifier.Integrations.Literotica
 				.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
 				?.InformationalVersion;
 
-			Log($"LiteroticaSdk Version: {ComputeMd5Hash(versionData ?? "")}");
+			Log($"[literotica] LiteroticaSdk Version: {ComputeMd5Hash(versionData ?? "")}");
 		}
 
 		// Called once per cycle by RunLoopAsync in Program.cs
 		public async Task RunAsync()
 		{
-			Log("Logging in...");
+			Log($"[literotica] Logging into {_username}...");
 			bool loggedIn = await _authClient.LoginAsync(_username, _password);
 
 			if (!loggedIn)
@@ -51,12 +51,12 @@ namespace BookNotifier.Integrations.Literotica
 
 		private async Task RunWatcher()
 		{
-			Log("Running watcher...");
+			Log("[literotica] Running watcher...");
 
 			Activity? activityData = await _authClient.Activity.GetFollowedAuthorsActivityAsync(50);
 			if (activityData is null || activityData.Data.Count <= 0)
 			{
-				Log("Failed to retrieve activity data, skipping watcher run.");
+				Log("[literotica] Failed to retrieve activity data, skipping watcher run.");
 				return;
 			}
 
@@ -68,7 +68,7 @@ namespace BookNotifier.Integrations.Literotica
 			Activity? myActivity = await _authClient.Activity.GetLocalActivityAsync(50);
 			if (myActivity is null || myActivity.Data.Count <= 0)
 			{
-				Log("Failed to retrieve my activity data, skipping watcher run.");
+				Log("[literotica] Failed to retrieve my activity data, skipping watcher run.");
 				return;
 			}
 
@@ -87,18 +87,18 @@ namespace BookNotifier.Integrations.Literotica
 
 				if (known.Stories.Contains(storyKey)) continue;
 
-				Log($"New story found: {storyActivity.What.Story?.Title} by {storyActivity.Who.Username}");
+				Log($"[literotica] New story found: {storyActivity.What.Story?.Title} by {storyActivity.Who.Username}");
 
 				Author? author = await AuthorsApi.GetAuthorByUsernameAsync(storyActivity.Who.Username);
 				if (author is null)
 				{
-					Log($"Failed to retrieve author data for {storyActivity.Who.Username}, skipping.");
+					Log($"[literotica] Failed to retrieve author data for {storyActivity.Who.Username}, skipping.");
 					continue;
 				}
 
 				if (storyActivity.What.Story is null)
 				{
-					LogError("Story is null after null check, skipping.");
+					LogError("[literotica] Story is null after null check, skipping.");
 					continue;
 				}
 
@@ -111,18 +111,18 @@ namespace BookNotifier.Integrations.Literotica
 			{
 				if (followedActivity.Whom is null)
 				{
-					Log($"Whom is null for activity at {followedActivity.When}, skipping.");
+					Log($"[literotica] Whom is null for activity at {followedActivity.When}, skipping.");
 					continue;
 				}
 
 				if (known.Authors.Contains(followedActivity.Whom.Username)) continue;
 
-				Log($"New author followed: {followedActivity.Whom.Username}");
+				Log($"[literotica] New author followed: {followedActivity.Whom.Username}");
 
 				Author? author = await AuthorsApi.GetAuthorByUsernameAsync(followedActivity.Whom.Username);
 				if (author is null)
 				{
-					Log($"Failed to retrieve author data for {followedActivity.Whom.Username}, skipping.");
+					Log($"[literotica] Failed to retrieve author data for {followedActivity.Whom.Username}, skipping.");
 					continue;
 				}
 
@@ -146,7 +146,7 @@ namespace BookNotifier.Integrations.Literotica
 					.ToHashSet()
 			});
 
-			Log("Successfully ran watcher!");
+			Log("[literotica] Successfully ran watcher!");
 		}
 	}
 }

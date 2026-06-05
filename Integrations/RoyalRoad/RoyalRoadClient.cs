@@ -43,11 +43,15 @@ namespace BookNotifier.Integrations.RoyalRoad
 
 		public async Task RunAsync()
 		{
+			Log($"[royalroad] Fetching Books for {userId}...");
 			List<RoyalRoadBook> currentBooks = await FetchAllFavouritesAsync();
+			Log($"[royalroad] Grabbed {currentBooks.Count} books...");
 
 			List<RoyalRoadKnownFiction> knownFictions = await FileStoreService.LoadRoyalRoadAsync();
-
+			
 			bool isFirstRun = knownFictions.Count == 0;
+
+			Log($"[royalroad] Cached books: {knownFictions.Count}, IsFirstRun: {isFirstRun}");
 
 			Dictionary<string, RoyalRoadKnownFiction> knownByUrl = knownFictions.ToDictionary(static f => f.Url, StringComparer.OrdinalIgnoreCase);
 
@@ -70,7 +74,10 @@ namespace BookNotifier.Integrations.RoyalRoad
 				{
 					// Brand-new fiction
 					if (!isFirstRun)
+					{
+						Log($"[royalroad] New Book Detected: {book.Title}");
 						await NotificationService.SendNewRoyalRoadFictionAsync(book.Title, normalizedUrl);
+					}
 
 					updatedFictions.Add(new RoyalRoadKnownFiction
 					{
@@ -93,6 +100,7 @@ namespace BookNotifier.Integrations.RoyalRoad
 
 				foreach (RoyalRoadKnownChapter chapter in newChapters.Where(_ => !isFirstRun))
 				{
+					Log($"[royalroad] New chapter released: {chapter.Title}");
 					await NotificationService.SendNewRoyalRoadChapterAsync(book.Title, normalizedUrl, chapter.Title, chapter.Url);
 				}
 

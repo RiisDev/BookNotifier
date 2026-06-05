@@ -54,6 +54,7 @@ namespace BookNotifier
 			{
 				try
 				{
+					Log($"[{name}] Running...");
 					await action();
 					Log($"[{name}] Check complete.");
 				}
@@ -152,7 +153,9 @@ namespace BookNotifier
 
 		private static async Task RunRoyalRoadAsync()
 		{
-			RoyalRoadClient client = new(992353);
+			string userId = Environment.GetEnvironmentVariable("ROYALROAD_USERID") ?? throw new InvalidOperationException("Missing ROYALROAD_USERID environment variable.");
+			if (!int.TryParse(userId, out int userIdOut)) throw new InvalidOperationException($"Failed to parse {userId} as int");
+			using RoyalRoadClient client = new(userIdOut);
 			await client.RunAsync();
 		}
 	}

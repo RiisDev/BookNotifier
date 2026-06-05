@@ -38,6 +38,7 @@ namespace BookNotifier.Integrations.GoodReads
 
 		public async Task<IReadOnlyList<GoodReadsBookDetails>> GetReadingListBooksAsync(string userId, string? shelf = null)
 		{
+			Log($"[goodreads] Getting reading list for: {userId}...");
 			string url = $"https://www.goodreads.com/review/list_rss/{userId}" + $"{(string.IsNullOrWhiteSpace(shelf) ? string.Empty : $"?shelf={shelf}")}";
 
 			string xmlContent = await GetStringWithRetryAsync(url);
@@ -59,7 +60,11 @@ namespace BookNotifier.Integrations.GoodReads
 				select new Uri(href!)
 			];
 
+			Log($"[goodreads] Found {bookUrls.Length} book(s) urls...");
+
 			GoodReadsBookDetails[] books = await Task.WhenAll(bookUrls.Select(GetBookDetailsAsync));
+
+			Log($"[goodreads] Grabbed {books.Length} book(s) data...");
 
 			return books.AsReadOnly();
 		}
@@ -144,6 +149,7 @@ namespace BookNotifier.Integrations.GoodReads
 
 		public async Task<GoodReadsBookDetails> GetBookSeriesDetails(GoodReadsBookDetails details)
 		{
+			Log("[goodreads] Series detected, grabbing series info...");
 			if (details.Series is null)
 			{
 				return details;
