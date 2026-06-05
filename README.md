@@ -14,6 +14,7 @@ Supported platforms:
 - [GoodReads](https://www.goodreads.com) — new books and series entries from authors on your shelf
 - [ScribbleHub](https://www.scribblehub.com) — new chapters on stories in your reading list
 - [Literotica](https://www.literotica.com) — new stories from your favourite authors
+- [RoyalRoad](https://www.royalroad.com) — new books and chapters entries from your favourites
 
 One container, one `.env` file. Run one notifier or all three concurrently.
 
@@ -41,27 +42,33 @@ Set `NOTIFIER` to a comma-separated list of the platforms you want to monitor. O
 
 ```env
 # Which notifiers to run (comma-separated, any combination)
-NOTIFIER=goodreads,scribblehub,literotica
+NOTIFIER=goodreads,scribblehub,literotica,royalroad
+
+# FlareSolver for required services
+FLARESOLVER_URL=your_flaresolver_url
 
 # Shared
 WEBHOOK=https://your.webhook.url/here
 
 # ---- GoodReads ----
 GOODREADS_RECHECK_MS=300000
-USER_ID=your_goodreads_user_id
-SHELF_TAG=your_shelf_name
+GOODREADS_USER_ID=your_goodreads_user_id
+GOODREADS_SHELF_TAG=your_shelf_name
 
 # ---- ScribbleHub ----
 SCRIBBLEHUB_RECHECK_MS=60000
-USERNAME=your_scribblehub_username
-PASSWORD=your_scribblehub_password
-PRESET_COOKIE=your_session_cookie  # fallback if login hits a CAPTCHA
-FLARESOLVER_URL=your_flaresolver_url
+SCRIBBLEHUB_USERNAME=your_scribblehub_username
+SCRIBBLEHUB_PASSWORD=your_scribblehub_password
+SCRIBBLEHUB_PRESET_COOKIE=your_session_cookie  # fallback if login hits a CAPTCHA
 
 # ---- Literotica ----
 LITEROTICA_RECHECK_MS=600000
-LIT_USERNAME=your_literotica_username
-LIT_PASSWORD=your_literotica_password
+LITEROTICA_USERNAME=your_literotica_username
+LITEROTICA_PASSWORD=your_literotica_password
+
+# ---- Royal Road ----
+ROYALROAD_RECHECK_MS=300000
+ROYALROAD_USERID=your_royalroad_user_id
 ```
 
 ### 3. Run with Docker
@@ -93,42 +100,43 @@ docker run -d \
 
 ### Shared
 
-| Variable   | Description                                                                                       |
-| ---------- | ---------------------------------------------                                                     |
-| `NOTIFIER` | Comma-separated list of notifiers to run. Valid values: `goodreads`, `scribblehub`, `literotica`  |
-| `WEBHOOK`  | Discord webhook URL where notifications will be sent                                              |
+| Variable           | Description                                                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `NOTIFIER`         | Comma-separated list of notifiers to run. Valid values: `goodreads`, `scribblehub`, `literotica`, `royalroad`        |
+| `WEBHOOK`          | Discord webhook URL where notifications will be sent                                                                 |
+| `FLARESOLVER_URL`  | URL of a locally instanced FlareSolverr to fix login issues                 |
 
 ### GoodReads
 
-| Variable               | Description                                                   |
-| ---------------------- | ------------------------------------------------------------- |
-| `GOODREADS_RECHECK_MS` | Interval in milliseconds between checks                       |
-| `USER_ID`              | Your GoodReads user ID — found in your profile URL            |
-| `SHELF_TAG`            | Shelf to watch (e.g. `to-read`, `currently-reading`)          |
+| Variable               | Description                                                  |
+| ---------------------- | ------------------------------------------------------------ |
+| `GOODREADS_RECHECK_MS` | Interval in milliseconds between checks                      |
+| `GOODREADS_USER_ID`    | Your GoodReads user ID — found in your profile URL           |
+| `GOODREADS_SHELF_TAG`  | Shelf to watch (e.g. `to-read`, `currently-reading`)         |
 
 ### ScribbleHub
 
-| Variable                | Description                                                                 |
-| ----------------------- | ------------------------------------------------------------------------    |
-| `SCRIBBLEHUB_RECHECK_MS`| Interval in milliseconds between checks                                     |
-| `USERNAME`              | Your ScribbleHub username                                                   |
-| `PASSWORD`              | Your ScribbleHub password                                                   |
-| `PRESET_COOKIE`         | Pre-authenticated session cookie — used as fallback if login hits a CAPTCHA |
-| `FLARESOLVER_URL`       | The url of a locally instanced FlareSolverr to fix login issues             |
+| Variable                  | Description                                                                 |
+| ------------------------- | --------------------------------------------------------------------------- |
+| `SCRIBBLEHUB_RECHECK_MS`  | Interval in milliseconds between checks                                     |
+| `SCRIBBLEHUB_USERNAME`    | Your ScribbleHub username                                                   |
+| `SCRIBBLEHUB_PASSWORD`    | Your ScribbleHub password                                                   |
+| `SCRIBBLEHUB_PRESET_COOKIE` | Pre-authenticated session cookie — used as fallback if login hits a CAPTCHA |
 
 ### Literotica
 
-| Variable                | Description                             |
-| ----------------------- | --------------------------------------- |
-| `LITEROTICA_RECHECK_MS` | Interval in milliseconds between checks |
-| `LIT_USERNAME`          | Your Literotica username                |
-| `LIT_PASSWORD`          | Your Literotica password                |
+| Variable                  | Description                             |
+| ------------------------- | --------------------------------------- |
+| `LITEROTICA_RECHECK_MS`   | Interval in milliseconds between checks |
+| `LITEROTICA_USERNAME`     | Your Literotica username                |
+| `LITEROTICA_PASSWORD`     | Your Literotica password                |
 
-### Volume
+### Royal Road
 
-| Volume      | Description                                                        |
-| ----------- | ------------------------------------------------------------------ |
-| `/app/data` | Persistent cache used to detect new content across restarts        |
+| Variable              | Description                                                    |
+| --------------------- | -------------------------------------------------------------- |
+| `ROYALROAD_RECHECK_MS`| Interval in milliseconds between checks                        |
+| `ROYALROAD_USERID`    | Your Royal Road user ID — found in your profile URL            |
 
 ---
 
@@ -142,6 +150,8 @@ Each enabled notifier runs concurrently in its own loop on its own interval. The
 
 **Literotica** logs in once and reuses the session across cycles, checking for new stories from your favourite authors each interval.
 
+**RoyalRoad** fetches your favourites, looks through all the books and checks for new chapters, will also look if new books are added.
+
 ---
 
 ## 🔔 Notifications
@@ -151,6 +161,7 @@ Each enabled notifier runs concurrently in its own loop on its own interval. The
 | GoodReads    | New book by a tracked author; new series entry  |
 | ScribbleHub  | New story on reading list; new chapter released |
 | Literotica   | New story from a favourite author               |
+| RoyalRoad    | New story on reading list; new chapter released |
 
 ---
 

@@ -1,8 +1,9 @@
-﻿using System.Text.Encodings.Web;
-using System.Text.Json;
-using BookNotifier.Integrations;
+﻿using BookNotifier.Integrations;
 using BookNotifier.Integrations.GoodReads;
 using BookNotifier.Integrations.Literotica;
+using BookNotifier.Integrations.RoyalRoad;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 
 namespace BookNotifier.Services
 {
@@ -91,5 +92,19 @@ namespace BookNotifier.Services
 		public static Task SaveLiteroticaAsync(LiteroticaKnownData data) => WriteAsync("literotica.json", data);
 
 		public static string CreateLiteroticaStoryKey(string? id, string? title) => $"{id}||{title}";
+
+
+		public static Task<List<RoyalRoadKnownFiction>> LoadRoyalRoadAsync() => ReadAsync<List<RoyalRoadKnownFiction>>("royalroad.json", []);
+
+		public static Task SaveRoyalRoadAsync(IEnumerable<RoyalRoadKnownFiction> fictions)
+		{
+			List<RoyalRoadKnownFiction> distinct = fictions
+				.GroupBy(static f => f.Url, StringComparer.OrdinalIgnoreCase)
+				.Select(static g => g.First())
+				.OrderBy(static f => f.Title)
+				.ToList();
+
+			return WriteAsync("royalroad.json", distinct);
+		}
 	}
 }

@@ -3,6 +3,7 @@ using BookNotifier.Integrations.Literotica;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using BookNotifier.Integrations.RoyalRoad;
 
 namespace BookNotifier
 {
@@ -38,6 +39,7 @@ namespace BookNotifier
 				"goodreads" => RunLoopAsync("goodreads", GetRecheckMs("GOODREADS"), RunGoodReadsAsync),
 				"scribblehub" => RunLoopAsync("scribblehub", GetRecheckMs("SCRIBBLEHUB"), RunScribbleHubAsync),
 				"literotica" => RunLoopAsync("literotica", GetRecheckMs("LITEROTICA"), RunLiteroticaAsync),
+				"royalroad" => RunLoopAsync("royalroad", GetRecheckMs("ROYALROAD"), RunRoyalRoadAsync),
 				_ => throw new InvalidOperationException(
 					$"Unknown notifier '{notifier}'. Expected one or more of: goodreads, scribblehub, literotica.")
 			});
@@ -84,10 +86,10 @@ namespace BookNotifier
 
 			IReadOnlyList<GoodReadsBookDetails> readingListData =
 				await sdk.GetReadingListBooksAsync(
-					Environment.GetEnvironmentVariable("USER_ID")
-						?? throw new InvalidOperationException("Missing USER_ID environment variable."),
-					Environment.GetEnvironmentVariable("SHELF_TAG")
-						?? throw new InvalidOperationException("Missing SHELF_TAG environment variable.")
+					Environment.GetEnvironmentVariable("GOODREADS_USER_ID")
+						?? throw new InvalidOperationException("Missing GOODREADS_USER_ID environment variable."),
+					Environment.GetEnvironmentVariable("GOODREADS_SHELF_TAG")
+						?? throw new InvalidOperationException("Missing GOODREADS_SHELF_TAG environment variable.")
 				);
 
 			Dictionary<string, List<GoodReadsBook>> authorBooks = [];
@@ -139,15 +141,20 @@ namespace BookNotifier
 
 		private static Task RunLiteroticaAsync()
 		{
-			string username = Environment.GetEnvironmentVariable("LIT_USERNAME")
-			                  ?? throw new InvalidOperationException("Missing LIT_USERNAME environment variable.");
+			string username = Environment.GetEnvironmentVariable("LITEROTICA_USERNAME")
+			                  ?? throw new InvalidOperationException("Missing LITEROTICA_USERNAME environment variable.");
 
-			string password = Environment.GetEnvironmentVariable("LIT_PASSWORD")
-			                  ?? throw new InvalidOperationException("Missing LIT_PASSWORD environment variable.");
+			string password = Environment.GetEnvironmentVariable("LITEROTICA_PASSWORD")
+			                  ?? throw new InvalidOperationException("Missing LITEROTICA_PASSWORD environment variable.");
 
 			return new LiteroticaClient(username, password).RunAsync();
 		}
 
+		private static async Task RunRoyalRoadAsync()
+		{
+			RoyalRoadClient client = new(992353);
+			await client.RunAsync();
+		}
 	}
 
 	internal class EnvService

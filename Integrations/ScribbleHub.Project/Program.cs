@@ -5,24 +5,24 @@ namespace ScribbleHub.Project
 {
 	internal class Program
 	{
-		static async Task Main(string[] args)
+		static async Task Main(string[] _)
 		{
 			using ScribbleClient api = new();
 
 			try
 			{
 				await api.Login(
-					Environment.GetEnvironmentVariable("USERNAME")
-					?? throw new InvalidOperationException("Missing USERNAME environment variable."),
-					Environment.GetEnvironmentVariable("PASSWORD")
-					?? throw new InvalidOperationException("Missing PASSWORD environment variable.")
+					Environment.GetEnvironmentVariable("SCRIBBLEHUB_USERNAME")
+					?? throw new InvalidOperationException("Missing SCRIBBLEHUB_USERNAME environment variable."),
+					Environment.GetEnvironmentVariable("SCRIBBLEHUB_PASSWORD")
+					?? throw new InvalidOperationException("Missing SCRIBBLEHUB_PASSWORD environment variable.")
 				);
 			}
 			catch
 			{
 				api.SetCookies(
-					Environment.GetEnvironmentVariable("PRESET_COOKIE")
-					?? throw new InvalidOperationException("Login failed and PRESET_COOKIE is missing.")
+					Environment.GetEnvironmentVariable("SCRIBBLEHUB_PRESET_COOKIE")
+					?? throw new InvalidOperationException("Login failed and SCRIBBLEHUB_PRESET_COOKIE is missing.")
 				);
 			}
 
