@@ -122,7 +122,7 @@ namespace BookNotifier.Services
 				Url = storyUrl
 			});
 
-		public static Task SendNewLitAuthorAsync(string authorUsername, string authorUrl, int storyCount) =>
+		public static Task SendNewLitAuthorAsync(string authorUsername, string authorUrl, long storyCount) =>
 			SendAsync(new NotificationPayload
 			{
 				Event = NotificationEvent.NewLitAuthor,
