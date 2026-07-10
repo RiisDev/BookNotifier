@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -8,11 +7,10 @@ using BookNotifier.Utilities;
 
 namespace ScribbleHub.Project
 {
-	public class ScribbleClient : IDisposable
+	public class ScribbleClient(string flareSolver, string userId) : IDisposable
 	{
-		private string _cookieString = "";
-
-
+		private string _cloudflareCookie = "";
+		private readonly string _sessionId = $"booknot-scribblehub-{Guid.NewGuid():N}";
 		private readonly HttpClient _client = new(new HttpClientHandler
 		{
 			AllowAutoRedirect = true,
@@ -28,8 +26,7 @@ namespace ScribbleHub.Project
 				{
 					"Accept-Language", "en-US,en;q=0.9"
 				}
-			},
-			Timeout = TimeSpan.FromSeconds(15)
+			}
 		};
 
 		public void Dispose()
@@ -38,81 +35,86 @@ namespace ScribbleHub.Project
 			_client.Dispose();
 		}
 
-		public void SetCookies(string cookieString)
+		public async Task InitiateSession()
 		{
-			Log("Setting cookies...");
-			_cookieString = cookieString;
+			StringContent body = new(
+				JsonSerializer.Serialize(new { cmd = "sessions.create", session = _sessionId }),
+				Encoding.UTF8,
+				"application/json"
+			);
+			await _client.PostAsync(flareSolver, body);
 		}
 
-		public async Task Login(string username, string password, string? referralUrl = "https://www.scribblehub.com/reading-list/")
+		public async Task DestroySessionAsync()
 		{
-			ArgumentException.ThrowIfNullOrWhiteSpace(username);
-			ArgumentException.ThrowIfNullOrWhiteSpace(password);
-			ArgumentException.ThrowIfNullOrWhiteSpace(referralUrl);
+			StringContent body = new(
+				JsonSerializer.Serialize(new { cmd = "sessions.destroy", session = _sessionId }),
+				Encoding.UTF8,
+				"application/json"
+			);
+			await _client.PostAsync(flareSolver, body);
+		}
 
-			await _client.GetAsync("https://www.scribblehub.com/login/");
-
-			using HttpRequestMessage request = new(HttpMethod.Post, new Uri("https://www.scribblehub.com/login/"));
-
-			FlareSolverCookie? cookie = await GetCfClearance();
-			if (cookie is null) LogError("Failed to get cf_clearance");
-			else request.Headers.TryAddWithoutValidation("Cookie", $"cf_clearance={cookie.Value}");
-
-			request.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
+		private async Task<string> PostSolver(string url, IEnumerable<KeyValuePair<string, string>>? postData = null)
+		{
+			StringContent body = new(
+				JsonSerializer.Serialize(new
+				{
+					cmd = "request.post",
+					url,
+					session = _sessionId, 
+					maxTimeout = 60000,
+					postData = postData is null ? null : await new FormUrlEncodedContent(postData).ReadAsStringAsync()
+				}),
+				Encoding.UTF8,
+				"application/json"
+			);
 			
-			request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+			HttpResponseMessage response = await _client.PostAsync(flareSolver, body);
+			string json = await response.Content.ReadAsStringAsync();
+
+			if (json.Contains("error"))
 			{
-				{ "reg_username", username },
-				{ "reg_password", password },
-				{ "chk_rememberme", "1" }, // "1" to check the box
-				{ "referral", referralUrl }
-			});
+				using JsonDocument doc = JsonDocument.Parse(json);
+				throw new InvalidOperationException($"FlareSolver encountered an error: {doc.RootElement.GetProperty("message").GetString()}");
+			}
 
-			HttpResponseMessage response = await _client.SendAsync(request);
-			string responseContent = await response.Content.ReadAsStringAsync();
-			string headersData = JsonSerializer.Serialize(response.Headers);
-			Log($"Login Cookies -> {headersData}");
-			Log($"Login Status -> {response.StatusCode}");
-			Log($"Login Content: {Convert.ToBase64String(Encoding.UTF8.GetBytes(responseContent))}");
-			
-			response.EnsureSuccessStatusCode();
-			
-			if (
-				responseContent.Contains("An error with Google reCAPTCHA has occurred. Please try again.") ||
-				!headersData.Contains("Set-Cookie")
-			) throw new InvalidOperationException("Captcha hit, cannot continue");
+			FlareSolver? solverData = JsonSerializer.Deserialize<FlareSolver>(json);
+
+			_cloudflareCookie = solverData?.Solution.Cookies.FirstOrDefault(x => x.Name == "cf_clearance")?.Value ?? "";
+
+			Log($"[POST] ({solverData?.Solution.Status}) {url}\n[RETURN] {json}");
+			return solverData?.Solution.Content ?? "";
 		}
 
+		
 		public async Task<List<ScribbleReadingListStory>> GetReadingList()
 		{
 			List<ScribbleReadingListStory> storyReturn = [];
 
-			HttpRequestMessage request = new(HttpMethod.Get, "https://www.scribblehub.com/reading-list/");
-			if (!string.IsNullOrEmpty(_cookieString)) request.Headers.TryAddWithoutValidation("Cookie", _cookieString);
-			HttpResponseMessage response = await _client.SendAsync(request);
-
-			Log($"Reading List Status -> ({response.StatusCode})");
-			response.EnsureSuccessStatusCode();
-			string data = await response.Content.ReadAsStringAsync();
+			string data = await PostSolver("https://www.scribblehub.com/wp-admin/admin-ajax.php", [
+				new KeyValuePair<string, string>("action", "wi_profilerl"),
+				new KeyValuePair<string, string>("intAuthorID", userId),
+				new KeyValuePair<string, string>("isMobile", ""),
+				new KeyValuePair<string, string>("str_isapp", "0"),
+			]);
 
 			if (data.Contains("need to log in before you can access this page", StringComparison.InvariantCultureIgnoreCase))
 				throw new InvalidOperationException("User is not logged in");
 
 			HtmlDocument document = HtmlDocument.Parse(data);
-			IEnumerable<HtmlElement> stories = document.QuerySelectorAll("div[title] a");
-
+			IEnumerable<HtmlElement> stories = document.QuerySelectorAll("div[class*=title] a");
+			
 			foreach (HtmlElement story in stories)
 			{
 				HtmlNode gridParent = story.Parent?.Parent ?? throw new InvalidOperationException("Failed to find grid parent.");
 				if (gridParent is not HtmlElement gridElement) throw new InvalidOperationException("Failed to convert back to htmlElement.");
 
-				HtmlElement latestSpan = gridElement.QuerySelector("span[last]") ?? throw new InvalidOperationException("Failed to find last span.");
-
 				string title = story.InnerText;
 				string storyLink = story.GetAttribute("href")!;
 				string storyId = Regex.Match(storyLink, @"series\/(\d+)\/", RegexOptions.Compiled | RegexOptions.Singleline).Groups[1].Value.Trim();
-				string chapterId = latestSpan.GetAttribute("last") ?? throw new InvalidOperationException("Failed to get last_id");
-				string chapterName = latestSpan.InnerText;
+				string chapterId = gridElement.QuerySelector("span[last]")?.GetAttribute("last") ?? throw new InvalidOperationException("Failed to get last_id");
+				string chapterName = gridElement.QuerySelector("[class=rl_i_status]")?.Children.LastOrDefault()?.InnerText ?? "";
 
 				if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(chapterId) || string.IsNullOrEmpty(chapterName))
 				{
@@ -123,19 +125,18 @@ namespace ScribbleHub.Project
 				Log($"Found Story: {title.HtmlDecode()} -> {chapterName.HtmlDecode()}");
 				storyReturn.Add(new ScribbleReadingListStory(title, storyLink, storyId, []));
 			}
-
+			
 			foreach (ScribbleReadingListStory story in storyReturn)
 			{
 				story.Chapters.AddRange(await GetBookToc(story.Id));
 				story.Chapters.Reverse();
 			}
-
+			
 			return storyReturn;
 		}
 
 		public async Task<List<ScribbleChapter>> GetBookToc(string bookId)
 		{
-			
 			using HttpRequestMessage request = new(HttpMethod.Post, new Uri("https://www.scribblehub.com/wp-admin/admin-ajax.php"));
 			Dictionary<string, string> formData = new()
 			{
@@ -144,11 +145,11 @@ namespace ScribbleHub.Project
 				{"strFic", "read"}
 			};
 			request.Content = new FormUrlEncodedContent(formData);
+			request.Headers.TryAddWithoutValidation("Cookie", $"cf_clearance={_cloudflareCookie}");
 
 			HttpResponseMessage response = await _client.SendAsync(request);
 			string responseContent = await response.Content.ReadAsStringAsync();
 			Log($"Book TOC Status -> ({response.StatusCode})");
-			response.EnsureSuccessStatusCode();
 
 			MatchCollection chapterMatches = Regex.Matches(responseContent, "title=\"([^\"]+)\"[^>]*href=\"([^\"]+)\"");
 			List<ScribbleChapter> chapters = [];
@@ -163,41 +164,6 @@ namespace ScribbleHub.Project
 			}
 
 			return chapters;
-		}
-
-		private async Task<FlareSolverCookie?> GetCfClearance()
-		{
-			try
-			{
-				string? flareSolver = Environment.GetEnvironmentVariable("FLARESOLVER_URL");
-
-				if (string.IsNullOrEmpty(flareSolver))
-					throw new InvalidOperationException("Missing flaresolver url variable");
-
-				Dictionary<string, object> postData = new()
-				{
-					{ "cmd", "request.get" },
-					{ "url", "https://www.scribblehub.com/login/" },
-					{ "disableMedia", true },
-					{ "returnOnlyCookies", true },
-					{ "maxTimeout", 30_000 }
-				};
-
-				HttpResponseMessage data = await _client.PostAsJsonAsync(flareSolver, postData);
-				data.EnsureSuccessStatusCode();
-
-				FlareSolver? flareData = await data.Content.ReadFromJsonAsync<FlareSolver>();
-
-				return flareData is null
-					? throw new InvalidOperationException("idk")
-					: flareData.Solution.Cookies.First(x => x.Name == "cf_clearance");
-			}
-			catch (Exception ex)
-			{
-				LogError("GetCf Failed with: {Exception}", ex.ToString());
-			}
-
-			return null;
 		}
 
 	}

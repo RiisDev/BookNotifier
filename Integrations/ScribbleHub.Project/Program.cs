@@ -5,50 +5,93 @@ namespace ScribbleHub.Project
 {
 	internal class Program
 	{
-		static async Task Main(string[] _)
+		static async Task Main(string[] __)
 		{
-			using ScribbleClient api = new();
+#if DEBUG
+			_ = new EnvService();
+#endif
+
+			Directory.CreateDirectory(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data"));
+
+			string userId = Environment.GetEnvironmentVariable("SCRIBBLEHUB_USERID") ?? throw new InvalidOperationException("Missing required USERID environment variable");
+			string flareSolver = Environment.GetEnvironmentVariable("FLARESOLVER_URL") ?? throw new InvalidOperationException("Missing required flaresolver URL");
+			
+			ScribbleClient api = new(flareSolver, userId);
 
 			try
 			{
-				await api.Login(
-					Environment.GetEnvironmentVariable("SCRIBBLEHUB_USERNAME")
-					?? throw new InvalidOperationException("Missing SCRIBBLEHUB_USERNAME environment variable."),
-					Environment.GetEnvironmentVariable("SCRIBBLEHUB_PASSWORD")
-					?? throw new InvalidOperationException("Missing SCRIBBLEHUB_PASSWORD environment variable.")
-				);
-			}
-			catch
-			{
-				api.SetCookies(
-					Environment.GetEnvironmentVariable("SCRIBBLEHUB_PRESET_COOKIE")
-					?? throw new InvalidOperationException("Login failed and SCRIBBLEHUB_PRESET_COOKIE is missing.")
-				);
-			}
+				await api.InitiateSession();
+				
+				List<ScribbleSaveBookRoot> currentBooks = await FileStoreService.LoadScribbleHubAsync();
+				List<ScribbleReadingListStory> readingData = await api.GetReadingList();
+				await FileStoreService.SaveScribbleHubAsync(readingData);
 
-			List<ScribbleSaveBookRoot> currentBooks = await FileStoreService.LoadScribbleHubAsync();
-			List<ScribbleReadingListStory> readingData = await api.GetReadingList();
-			await FileStoreService.SaveScribbleHubAsync(readingData);
-
-			foreach (ScribbleReadingListStory story in readingData)
-			{
-				ScribbleSaveBookRoot? cachedStory = currentBooks.FirstOrDefault(x => x.Id == story.Id);
-
-				if (cachedStory is null)
+				foreach (ScribbleReadingListStory story in readingData)
 				{
-					Log($"[scribblehub] New story: {story.Name} -> {story.Chapters.Count} chapters");
-					await NotificationService.SendNewScribbleStoryAsync(story.Name, story.Link);
-					continue;
+					ScribbleSaveBookRoot? cachedStory = currentBooks.FirstOrDefault(x => x.Id == story.Id);
+
+					if (cachedStory is null)
+					{
+						Log($"[scribblehub] New story: {story.Name} -> {story.Chapters.Count} chapters");
+						await NotificationService.SendNewScribbleStoryAsync(story.Name, story.Link);
+						continue;
+					}
+
+					ScribbleChapter latestCurrentChapter = story.Chapters[^1];
+					ScribbleSaveChapter latestCachedChapter = cachedStory.Chapters[^1];
+
+					if (latestCurrentChapter.Id == latestCachedChapter.Id) continue;
+
+					Log($"[scribblehub] New chapter: {story.Name} -> {latestCurrentChapter.Title}");
+					await NotificationService.SendNewScribbleChapterAsync(story.Name, story.Link,
+						latestCurrentChapter.Title, latestCurrentChapter.Link);
 				}
-
-				ScribbleChapter latestCurrentChapter = story.Chapters[^1];
-				ScribbleSaveChapter latestCachedChapter = cachedStory.Chapters[^1];
-
-				if (latestCurrentChapter.Id == latestCachedChapter.Id) continue;
-
-				Log($"[scribblehub] New chapter: {story.Name} -> {latestCurrentChapter.Title}");
-				await NotificationService.SendNewScribbleChapterAsync(story.Name, story.Link, latestCurrentChapter.Title, latestCurrentChapter.Link);
 			}
+			catch (Exception ex)
+			{
+				Log($"An unknown error has occured during runtime: {ex}");
+			}
+			finally
+			{
+				await api.DestroySessionAsync();
+				api.Dispose();
+			}
+
 		}
 	}
+
+
+#if DEBUG
+	internal class EnvService
+	{
+		public IReadOnlyDictionary<string, string> Variables { get; private set; }
+
+		internal EnvService()
+		{
+			Variables = new Dictionary<string, string>();
+			Dictionary<string, string> vars = [];
+			string envPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".env");
+			if (!File.Exists(envPath))
+			{
+				Variables = vars;
+				return;
+			}
+
+			foreach (string line in File.ReadAllLines(envPath))
+			{
+				if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#')) continue;
+				string[] parts = line.Split('=', 2);
+				if (parts.Length != 2) continue;
+				string key = parts[0].Trim();
+				if (string.IsNullOrEmpty(key)) continue;
+				string value = parts[1].Trim().Trim('"').Trim('\'');
+				vars[key] = value;
+				if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+					Environment.SetEnvironmentVariable(key, value);
+			}
+
+			Variables = vars;
+		}
+	}
+#endif
 }

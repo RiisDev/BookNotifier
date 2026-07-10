@@ -30,6 +30,8 @@ namespace BookNotifier.Integrations
 	);
 
 	public record FlareSolverSolution(
-		[property: JsonPropertyName("cookies")] IReadOnlyList<FlareSolverCookie> Cookies
+		[property: JsonPropertyName("cookies")] IReadOnlyList<FlareSolverCookie> Cookies,
+		[property: JsonPropertyName("response")] string? Content,
+		[property: JsonPropertyName("status")] int? Status
 	);
 }

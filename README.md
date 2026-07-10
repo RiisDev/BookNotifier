@@ -25,6 +25,7 @@ One container, one `.env` file. Run one notifier or all three concurrently.
 - Docker installed
 - Accounts on whichever platforms you want to monitor
 - A Discord Webhook URL
+- FlareSolver (If using ScribbleHub)
 
 ---
 
@@ -57,9 +58,7 @@ GOODREADS_SHELF_TAG=your_shelf_name
 
 # ---- ScribbleHub ----
 SCRIBBLEHUB_RECHECK_MS=60000
-SCRIBBLEHUB_USERNAME=your_scribblehub_username
-SCRIBBLEHUB_PASSWORD=your_scribblehub_password
-SCRIBBLEHUB_PRESET_COOKIE=your_session_cookie  # fallback if login hits a CAPTCHA
+SCRIBBLEHUB_USERID=your_scribblehub_userid
 
 # ---- Literotica ----
 LITEROTICA_RECHECK_MS=600000
@@ -119,9 +118,7 @@ docker run -d \
 | Variable                  | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `SCRIBBLEHUB_RECHECK_MS`  | Interval in milliseconds between checks                                     |
-| `SCRIBBLEHUB_USERNAME`    | Your ScribbleHub username                                                   |
-| `SCRIBBLEHUB_PASSWORD`    | Your ScribbleHub password                                                   |
-| `SCRIBBLEHUB_PRESET_COOKIE` | Pre-authenticated session cookie — used as fallback if login hits a CAPTCHA |
+| `SCRIBBLEHUB_USERID`      | Your ScribbleHub userid                                                     |
 
 ### Literotica
 
@@ -146,7 +143,7 @@ Each enabled notifier runs concurrently in its own loop on its own interval. The
 
 **GoodReads** fetches your shelf, collects all distinct authors, retrieves their full book lists, and checks for new standalone books and series entries against the local cache. A fresh HTTP client is created each cycle to avoid caching issues.
 
-**ScribbleHub** logs in (falling back to `PRESET_COOKIE` on failure), fetches your reading list and each story's full table of contents, then compares the latest chapter against the cache. A fresh HTTP client is created each cycle to avoid Cloudflare and cookie issues.
+**ScribbleHub** fetches your PUBLIC reading list and each story's full table of contents, then compares the latest chapter against the cache. FlareSolver is REQUIRED.
 
 **Literotica** logs in once and reuses the session across cycles, checking for new stories from your favourite authors each interval.
 
