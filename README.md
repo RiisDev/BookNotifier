@@ -25,7 +25,9 @@ One container, one `.env` file. Run one notifier or all three concurrently.
 - Docker installed
 - Accounts on whichever platforms you want to monitor
 - A Discord Webhook URL
-- FlareSolver (If using ScribbleHub)
+
+> [!IMPORTANT]
+> AO3 and ScribbleHub require a [FlareSolver](https://github.com/FlareSolverr/FlareSolverr) instance to be running to use.
 
 ---
 
@@ -59,6 +61,11 @@ GOODREADS_SHELF_TAG=your_shelf_name
 # ---- ScribbleHub ----
 SCRIBBLEHUB_RECHECK_MS=60000
 SCRIBBLEHUB_USERID=your_scribblehub_userid
+
+# ---- AO3 ----
+AO3_RECHECK_MS=6000000
+AO3_USERNAME=your_username
+AO3_PSEUDO=your_pseudo #optional, will fallback to username
 
 # ---- Literotica ----
 LITEROTICA_RECHECK_MS=600000
@@ -120,6 +127,14 @@ docker run -d \
 | `SCRIBBLEHUB_RECHECK_MS`  | Interval in milliseconds between checks                                     |
 | `SCRIBBLEHUB_USERID`      | Your ScribbleHub userid                                                     |
 
+### Ao3
+
+| Variable                  | Description                                                                 |
+| ------------------------- | --------------------------------------------------------------------------- |
+| `AO3_RECHECK_MS`			| Interval in milliseconds between checks											  |
+| `AO3_USERNAME`			| Your Ao3 username																	  |
+| `AO3_PSEUDO`				| Your Ao3 pseudoname																  |
+
 ### Literotica
 
 | Variable                  | Description                             |
@@ -149,6 +164,8 @@ Each enabled notifier runs concurrently in its own loop on its own interval. The
 
 **RoyalRoad** fetches your favourites, looks through all the books and checks for new chapters, will also look if new books are added.
 
+**Ao3** fetches your public bookmarks (Max first 3 pages), looks through all the books and checks for new chapters, will also look if new books are detected.
+
 ---
 
 ## 🔔 Notifications
@@ -159,6 +176,7 @@ Each enabled notifier runs concurrently in its own loop on its own interval. The
 | ScribbleHub  | New story on reading list; new chapter released |
 | Literotica   | New story from a favourite author               |
 | RoyalRoad    | New story on reading list; new chapter released |
+| Ao3		   | New story on reading list; new chapter released |
 
 ---
 

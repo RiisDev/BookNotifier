@@ -5,6 +5,9 @@ namespace ScribbleHub.Project
 {
 	internal class Program
 	{
+		public static readonly FlareSolverClient FlareClient = new();
+		public static readonly string SessionId = $"booknot-scribblehub-{Guid.NewGuid():N}";
+
 		static async Task Main(string[] __)
 		{
 #if DEBUG
@@ -14,13 +17,12 @@ namespace ScribbleHub.Project
 			Directory.CreateDirectory(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data"));
 
 			string userId = Environment.GetEnvironmentVariable("SCRIBBLEHUB_USERID") ?? throw new InvalidOperationException("Missing required USERID environment variable");
-			string flareSolver = Environment.GetEnvironmentVariable("FLARESOLVER_URL") ?? throw new InvalidOperationException("Missing required flaresolver URL");
 			
-			ScribbleClient api = new(flareSolver, userId);
+			ScribbleClient api = new(userId);
 
 			try
 			{
-				await api.InitiateSession();
+				await FlareClient.InitiateSession(SessionId);
 				
 				List<ScribbleSaveBookRoot> currentBooks = await FileStoreService.LoadScribbleHubAsync();
 				List<ScribbleReadingListStory> readingData = await api.GetReadingList();
@@ -53,8 +55,7 @@ namespace ScribbleHub.Project
 			}
 			finally
 			{
-				await api.DestroySessionAsync();
-				api.Dispose();
+				await FlareClient.DestroySessionAsync(SessionId);
 			}
 
 		}

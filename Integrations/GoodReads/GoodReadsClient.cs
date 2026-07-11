@@ -34,8 +34,6 @@ namespace BookNotifier.Integrations.GoodReads
 			_client.Dispose();
 		}
 
-		public async Task<IReadOnlyList<GoodReadsBookDetails>> GetReadingListBooksAsync(long userId, string? shelf = null) => await GetReadingListBooksAsync(userId.ToString(), shelf);
-
 		public async Task<IReadOnlyList<GoodReadsBookDetails>> GetReadingListBooksAsync(string userId, string? shelf = null)
 		{
 			Log($"[goodreads] Getting reading list for: {userId}...");

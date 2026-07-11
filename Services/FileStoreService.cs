@@ -4,6 +4,7 @@ using BookNotifier.Integrations.Literotica;
 using BookNotifier.Integrations.RoyalRoad;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using BookNotifier.Integrations.Ao3;
 
 namespace BookNotifier.Services
 {
@@ -93,6 +94,9 @@ namespace BookNotifier.Services
 
 		public static string CreateLiteroticaStoryKey(string? id, string? title) => $"{id}||{title}";
 
+		public static Task<List<Ao3ExistingWorkEntries>> LoadAo3Async() => ReadAsync<List<Ao3ExistingWorkEntries>>("ao3.json", []);
+
+		public static Task SaveAo3Async(List<Ao3WorkEntry> workEntries) => WriteAsync("ao3.json", workEntries);
 
 		public static Task<List<RoyalRoadKnownFiction>> LoadRoyalRoadAsync() => ReadAsync<List<RoyalRoadKnownFiction>>("royalroad.json", []);
 

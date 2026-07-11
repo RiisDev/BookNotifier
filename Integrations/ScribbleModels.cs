@@ -31,6 +31,7 @@ namespace BookNotifier.Integrations
 
 	public record FlareSolverSolution(
 		[property: JsonPropertyName("cookies")] IReadOnlyList<FlareSolverCookie> Cookies,
+		[property: JsonPropertyName("headers")] IReadOnlyDictionary<string, string> Headers,
 		[property: JsonPropertyName("response")] string? Content,
 		[property: JsonPropertyName("status")] int? Status
 	);

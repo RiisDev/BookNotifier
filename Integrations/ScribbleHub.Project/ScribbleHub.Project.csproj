@@ -11,10 +11,14 @@
     <ProjectReference Include="..\..\BookNotifier.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update=".env">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+	<Target Name="CopyOutputToBookNotifier" AfterTargets="Build">
+		<ItemGroup>
+			<BuildOutput Include="$(OutputPath)**\*" />
+		</ItemGroup>
 
+		<Copy
+			SourceFiles="@(BuildOutput)"
+			DestinationFiles="@(BuildOutput->'..\..\bin\$(Configuration)\$(TargetFramework)\%(RecursiveDir)%(Filename)%(Extension)')"
+			SkipUnchangedFiles="true" />
+	</Target>
 </Project>

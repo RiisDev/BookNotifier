@@ -3,12 +3,16 @@ using BookNotifier.Integrations.Literotica;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using BookNotifier.Integrations.Ao3;
 using BookNotifier.Integrations.RoyalRoad;
+using BookNotifier.Services;
 
 namespace BookNotifier
 {
 	internal class Program
 	{
+		public static FlareSolverClient FlareClient = new();
+
 		public static async Task Main(string[] args)
 		{
 			CultureInfo ci = new("en-CA");
@@ -40,8 +44,9 @@ namespace BookNotifier
 				"scribblehub" => RunLoopAsync("scribblehub", GetRecheckMs("SCRIBBLEHUB"), RunScribbleHubAsync),
 				"literotica" => RunLoopAsync("literotica", GetRecheckMs("LITEROTICA"), RunLiteroticaAsync),
 				"royalroad" => RunLoopAsync("royalroad", GetRecheckMs("ROYALROAD"), RunRoyalRoadAsync),
+				"ao3" => RunLoopAsync("ao3", GetRecheckMs("AO3"), RunAo3Async),
 				_ => throw new InvalidOperationException(
-					$"Unknown notifier '{notifier}'. Expected one or more of: goodreads, scribblehub, literotica.")
+					$"Unknown notifier '{notifier}'. Expected one or more of: goodreads, scribblehub, literotica, royalroad, ao3.")
 			});
 
 			await Task.WhenAll(notifierTasks);
@@ -79,6 +84,16 @@ namespace BookNotifier
 			return !long.TryParse(raw, out long ms)
 				? throw new InvalidOperationException($"Failed to parse {key}.")
 				: ms;
+		}
+
+		private static async Task RunAo3Async()
+		{
+			string username = Environment.GetEnvironmentVariable("AO3_USERNAME") ?? throw new InvalidOperationException("Missing AO3_USERNAME environment variable");
+			string pseudoname = Environment.GetEnvironmentVariable("AO3_PSEUDO") ?? username;
+
+			Ao3Client ao3Client = new(username, pseudoname);
+
+			await ao3Client.RunCheck();
 		}
 
 		private static async Task RunGoodReadsAsync()
@@ -142,11 +157,8 @@ namespace BookNotifier
 
 		private static Task RunLiteroticaAsync()
 		{
-			string username = Environment.GetEnvironmentVariable("LITEROTICA_USERNAME")
-			                  ?? throw new InvalidOperationException("Missing LITEROTICA_USERNAME environment variable.");
-
-			string password = Environment.GetEnvironmentVariable("LITEROTICA_PASSWORD")
-			                  ?? throw new InvalidOperationException("Missing LITEROTICA_PASSWORD environment variable.");
+			string username = Environment.GetEnvironmentVariable("LITEROTICA_USERNAME") ?? throw new InvalidOperationException("Missing LITEROTICA_USERNAME environment variable.");
+			string password = Environment.GetEnvironmentVariable("LITEROTICA_PASSWORD") ?? throw new InvalidOperationException("Missing LITEROTICA_PASSWORD environment variable.");
 
 			return new LiteroticaClient(username, password).RunAsync();
 		}

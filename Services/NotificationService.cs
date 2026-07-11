@@ -21,6 +21,10 @@ namespace BookNotifier.Services
 		// Literotica
 		NewLitStory,
 		NewLitAuthor,
+
+		// Ao3
+		NewAo3Story,
+		NewAo3Chapter,
 	}
 
 	public record NotificationPayload
@@ -90,7 +94,29 @@ namespace BookNotifier.Services
 				ChapterTitle = chapterTitle,
 				ChapterUrl = chapterUrl
 			});
-		
+
+
+		// Ao3
+		public static Task SendNewAo3FictionAsync(string title, string url) =>
+			SendAsync(new NotificationPayload
+			{
+				Event = NotificationEvent.NewAo3Story,
+				Title = title,
+				Author = string.Empty,
+				Url = url
+			});
+
+		public static Task SendNewAo3ChapterAsync(string fictionTitle, string fictionUrl, string chapterTitle, string chapterUrl) =>
+			SendAsync(new NotificationPayload
+			{
+				Event = NotificationEvent.NewAo3Chapter,
+				Title = fictionTitle,
+				Author = string.Empty,
+				Url = fictionUrl,
+				ChapterTitle = chapterTitle,
+				ChapterUrl = chapterUrl
+			});
+
 		// ScribbleHub
 		public static Task SendNewScribbleStoryAsync(string name, string url) =>
 			SendAsync(new NotificationPayload
@@ -272,6 +298,29 @@ namespace BookNotifier.Services
 				),
 
 
+				NotificationEvent.NewAo3Story => (
+					1752220,
+					"New work detected in bookmarks!!",
+					$"""
+					 **{payload.Title}**
+
+					 ({payload.Url})
+					 """
+				),
+
+				NotificationEvent.NewAo3Chapter => (
+					16750848,
+					"New Chapter Published!",
+					$"""
+					 **{payload.Title}** has a new chapter!
+
+					 **{payload.ChapterTitle}**
+
+					 ({payload.ChapterUrl})
+					 """
+				),
+
+
 				_ => (0, "Book Notification", $"**{payload.Title}** by *{payload.Author}*\n\n({payload.Url})")
 			};
 
@@ -282,6 +331,14 @@ namespace BookNotifier.Services
 		private static (string AvatarUrl, string BotUsername) GetPlatformMeta(NotificationEvent @event) =>
 			@event switch
 			{
+				NotificationEvent.NewAo3Chapter or
+					NotificationEvent.NewAo3Story =>
+					(
+						"https://www.google.com/s2/favicons?domain=archiveofourown.org&sz=48",
+						"Ao3 - Book Notifier"
+					),
+
+
 				NotificationEvent.NewRoyalRoadFiction or
 					NotificationEvent.NewRoyalRoadChapter =>
 					(
