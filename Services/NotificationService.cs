@@ -334,7 +334,7 @@ namespace BookNotifier.Services
 				NotificationEvent.NewAo3Chapter or
 					NotificationEvent.NewAo3Story =>
 					(
-						"https://www.google.com/s2/favicons?domain=archiveofourown.org&sz=48",
+						"https://api.irisapp.ca/images/ao3-logo.png",
 						"Ao3 - Book Notifier"
 					),
 

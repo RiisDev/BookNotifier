@@ -15,6 +15,7 @@ Supported platforms:
 - [ScribbleHub](https://www.scribblehub.com) — new chapters on stories in your reading list
 - [Literotica](https://www.literotica.com) — new stories from your favourite authors
 - [RoyalRoad](https://www.royalroad.com) — new books and chapters entries from your favourites
+- [Ao3](https://www.archiveofourown.org) — new books and chapters entries from your favourites
 
 One container, one `.env` file. Run one notifier or all three concurrently.
 
@@ -45,7 +46,7 @@ Set `NOTIFIER` to a comma-separated list of the platforms you want to monitor. O
 
 ```env
 # Which notifiers to run (comma-separated, any combination)
-NOTIFIER=goodreads,scribblehub,literotica,royalroad
+NOTIFIER=goodreads,scribblehub,literotica,royalroad,ao3
 
 # FlareSolver for required services
 FLARESOLVER_URL=your_flaresolver_url
