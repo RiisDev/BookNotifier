@@ -7,7 +7,7 @@ namespace ScribbleHub.Project
 	public class ScribbleClient(string userId)
 	{
 		private string _cloudflareCookie = "";
-
+		
 		public async Task<List<ScribbleReadingListStory>> GetReadingList()
 		{
 			List<ScribbleReadingListStory> storyReturn = [];

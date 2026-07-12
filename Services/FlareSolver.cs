@@ -1,5 +1,6 @@
 ﻿using BookNotifier.Integrations;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
@@ -24,7 +25,7 @@ namespace BookNotifier.Services
 
 		public async Task<HttpResponseMessage> CfCookiePostRequest(string url, string cfClearance, HttpContent? postData = null)
 		{
-			using HttpRequestMessage request = new(HttpMethod.Post, new Uri("https://www.scribblehub.com/wp-admin/admin-ajax.php"));
+			using HttpRequestMessage request = new(HttpMethod.Post, new Uri(url));
 			if (postData is not null)
 				request.Content = postData;
 			request.Headers.TryAddWithoutValidation("Cookie", $"cf_clearance={cfClearance}");
@@ -55,7 +56,7 @@ namespace BookNotifier.Services
 			await _flareSolverClient.PostAsync(_flareSolver, body);
 		}
 
-		public async Task<(string, int, string)> PostSolver(string url, string sessionId, IEnumerable<KeyValuePair<string, string>>? postData = null)
+		public async Task<(string, int, string)> PostSolver(string url, string sessionId, IEnumerable<KeyValuePair<string, string>>? postData = null, [CallerMemberName] string caller = "")
 		{
 			if (string.IsNullOrEmpty(_flareSolver))
 				return ("", -1, "");
@@ -67,7 +68,7 @@ namespace BookNotifier.Services
 			{
 				if (retries != 0)
 				{
-					Log($"Retry: {retries}/{retryLimit}");
+					Log($"[{caller}] Retry: {retries}/{retryLimit}");
 				}
 
 				StringContent body = new(
@@ -89,16 +90,30 @@ namespace BookNotifier.Services
 				{
 					using JsonDocument document = JsonDocument.Parse(json);
 
-					Log($"FlareSolver encountered an error: {document.RootElement.GetProperty("message").GetString()}, retrying...");
+					Log($"[POST] [{caller}] FlareSolver encountered an error: {document.RootElement.GetProperty("message").GetString()}, retrying...");
 
 					retries++;
 					continue;
 				}
-
+				
 				FlareSolver? solverData = JsonSerializer.Deserialize<FlareSolver>(json);
 
 				if (solverData is null)
 					throw new InvalidOperationException($"SolverData somehow null: {json}");
+
+				if (string.IsNullOrEmpty(solverData.Solution.Content))
+				{
+					Log($"[POST] [{caller}] Solution content was empty, retrying");
+					retries++;
+					continue;
+				}
+
+				if (!solverData.Solution.Cookies.Any())
+				{
+					Log($"[POST] [{caller}] Solution cookies array was empty, retrying");
+					retries++;
+					continue;
+				}
 
 				if (solverData.Solution.Status == 429)
 				{
@@ -108,7 +123,7 @@ namespace BookNotifier.Services
 
 					if (int.TryParse(retryAfter, out int retryDuration))
 					{
-						Log($"[POST] Rate Limited, Retry-After header found: ({retryDuration} seconds), waiting...");
+						Log($"[POST] [{caller}] Rate Limited, Retry-After header found: ({retryDuration} seconds), waiting...");
 
 						await Task.Delay(TimeSpan.FromSeconds(retryDuration));
 
@@ -117,7 +132,7 @@ namespace BookNotifier.Services
 					}
 				}
 
-				Log($"[POST] ({solverData.Solution.Status}) {url}");
+				Log($"[POST] [{caller}] ({solverData.Solution.Status}) {url}");
 
 				return (
 					solverData.Solution.Content ?? "",
@@ -129,7 +144,7 @@ namespace BookNotifier.Services
 			throw new InvalidOperationException($"Failed after {retryLimit} retries");
 		}
 
-		public async Task<(string, int, string)> GetSolver(string url, string sessionId)
+		public async Task<(string, int, string)> GetSolver(string url, string sessionId, [CallerMemberName] string caller = "")
 		{
 			if (string.IsNullOrEmpty(_flareSolver)) return ("", -1, "");
 
@@ -157,7 +172,7 @@ namespace BookNotifier.Services
 				if (json.Contains("\"error\""))
 				{
 					using JsonDocument doc = JsonDocument.Parse(json);
-					Log($"FlareSolver encountered an error: {doc.RootElement.GetProperty("message").GetString()}, retrying...");
+					Log($"[GET] [{caller}] FlareSolver encountered an error: {doc.RootElement.GetProperty("message").GetString()}, retrying...");
 					retries++;
 					continue;
 				}
@@ -167,19 +182,33 @@ namespace BookNotifier.Services
 				if (solverData is null)
 					throw new InvalidOperationException($"SolverData somehow null: {json}");
 
+				if (string.IsNullOrEmpty(solverData.Solution.Content))
+				{
+					Log($"[GET] [{caller}] Solution content was empty, retrying");
+					retries++;
+					continue;
+				}
+
+				if (!solverData.Solution.Cookies.Any())
+				{
+					Log($"[GET] [{caller}] Solution cookies array was empty, retrying");
+					retries++;
+					continue;
+				}
+				
 				if (solverData.Solution.Status == 429)
 				{
 					string? retryAfter = solverData.Solution.Headers.FirstOrDefault(x => x.Key == "retry-after").Value;
 					if (int.TryParse(retryAfter, out int retryDuration))
 					{
-						Log($"[GET] Rate Limited, Retry-After header found: ({retryDuration} seconds), waiting...");
+						Log($"[GET] [{caller}] Rate Limited, Retry-After header found: ({retryDuration} seconds), waiting...");
 						await Task.Delay(TimeSpan.FromSeconds(retryDuration));
 						retries++;
 						continue;
 					}
 				}
 
-				Log($"[GET] ({solverData.Solution.Status}) {url}");
+				Log($"[GET] [{caller}] ({solverData.Solution.Status}) {url}");
 				return (
 					solverData.Solution.Content ?? "", 
 					solverData.Solution.Status ?? -1, 
