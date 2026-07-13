@@ -33,6 +33,7 @@ namespace BookNotifier.Integrations
 		[property: JsonPropertyName("cookies")] IReadOnlyList<FlareSolverCookie> Cookies,
 		[property: JsonPropertyName("headers")] IReadOnlyDictionary<string, string> Headers,
 		[property: JsonPropertyName("response")] string? Content,
-		[property: JsonPropertyName("status")] int? Status
+		[property: JsonPropertyName("status")] int? Status,
+		[property: JsonPropertyName("url")] string? Url
 	);
 }

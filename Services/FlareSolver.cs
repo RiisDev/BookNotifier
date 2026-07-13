@@ -8,6 +8,9 @@ namespace BookNotifier.Services
 {
 	public class FlareSolverClient
 	{
+		private const int RetryLimit = 5;
+		private const int ScribbleDefaultRetry = 120_000;
+
 		private readonly string _flareSolver = Environment.GetEnvironmentVariable("FLARESOLVER_URL") ?? "";
 
 		private readonly HttpClient _flareSolverClient = new(new HttpClientHandler
@@ -32,206 +35,174 @@ namespace BookNotifier.Services
 			return await _flareSolverClient.SendAsync(request);
 		}
 
-		public async Task InitiateSession(string sessionId)
+		private async Task SendSessionCommandAsync(string command, string sessionId)
 		{
 			if (string.IsNullOrEmpty(_flareSolver)) return;
 
-			StringContent body = new(
-				JsonSerializer.Serialize(new { cmd = "sessions.create", session = sessionId }),
+			using StringContent body = new(
+				JsonSerializer.Serialize(
+					new
+					{
+						cmd = command,
+						session = sessionId
+					}
+				),
 				Encoding.UTF8,
 				"application/json"
 			);
-			await _flareSolverClient.PostAsync(_flareSolver, body);
-		}
 
-		public async Task DestroySessionAsync(string sessionId)
+			using HttpResponseMessage response = await _flareSolverClient.PostAsync(_flareSolver, body);
+		}
+		
+		private static readonly IReadOnlyDictionary<string, (string ErrorMessage, int RetryDelay)> CustomResolvers = new Dictionary<string, (string, int)>
 		{
-			if (string.IsNullOrEmpty(_flareSolver)) return;
+			["hackform"] = ("[SCRIBBLE-HACKFORM] Custom captcha found, retrying", ScribbleDefaultRetry)
+		};
 
-			StringContent body = new(
-				JsonSerializer.Serialize(new { cmd = "sessions.destroy", session = sessionId }),
-				Encoding.UTF8,
-				"application/json"
-			);
-			await _flareSolverClient.PostAsync(_flareSolver, body);
-		}
-
-		public async Task<(string, int, string)> PostSolver(string url, string sessionId, IEnumerable<KeyValuePair<string, string>>? postData = null, [CallerMemberName] string caller = "")
+		private async Task<(string, int, string)> SolverRequest(string requestJson, HttpMethod method, [CallerMemberName] string caller = "")
 		{
 			if (string.IsNullOrEmpty(_flareSolver))
 				return ("", -1, "");
 
-			const int retryLimit = 5;
+			string methodText = method.Method.ToUpper();
+
 			int retries = 0;
 
-			while (retries < retryLimit)
+			while (retries < RetryLimit)
 			{
-				if (retries != 0)
+				if (retries != 0) Log($"[{methodText}] [{caller}] Retry: {retries}/{RetryLimit}");
+
+				using StringContent request = new(requestJson, Encoding.UTF8, "application/json");
+				using HttpResponseMessage response = await _flareSolverClient.PostAsync(_flareSolver, request);
+				string json = await response.Content.ReadAsStringAsync();
+
+				if (json.Contains("\"error\""))
 				{
-					Log($"[{caller}] Retry: {retries}/{retryLimit}");
+					try
+					{
+						using JsonDocument document = JsonDocument.Parse(json);
+						Log($"[{methodText}] [{caller}] FlareSolver encountered an error: {document.RootElement.GetProperty("message").GetString()}, retrying...");
+					}
+					catch
+					{
+						Log($"[{methodText}] [{caller}] FlareSolver encountered an error: {json}, retrying...");
+					}
+					retries++;
+					continue;
 				}
 
-				StringContent body = new(
-					JsonSerializer.Serialize(new
+				FlareSolver? solverData = JsonSerializer.Deserialize<FlareSolver>(json);
+
+				if (solverData is null)
+					throw new InvalidOperationException($"SolverData somehow null: {json}");
+
+				string content = solverData.Solution.Content ?? "";
+				int statusCode = solverData.Solution.Status ?? 422;
+
+				if (statusCode != 200)
+				{
+					solverData.Solution.Headers.TryGetValue("retry-after", out string? retryAfter);
+					if (int.TryParse(retryAfter, out int retryDuration))
+					{
+						Log($"[{methodText}] [{caller}] ({statusCode}) [{(HttpStatusCode)statusCode}], Retry-After header found: ({retryDuration} seconds), waiting...");
+						await Task.Delay(TimeSpan.FromSeconds(retryDuration));
+					}
+					else if (statusCode == 422) Log($"[{methodText}] [{caller}] Unknown flaresolver data return found: {json}");
+					else
+					{
+						Log($"[{methodText}] [{caller}] ({statusCode}) [{(HttpStatusCode)statusCode}], Retry-After header not found, waiting 120 seconds...");
+						await Task.Delay(ScribbleDefaultRetry);
+					}
+
+					retries++;
+					continue;
+				}
+
+				if (string.IsNullOrEmpty(content))
+				{
+					Log($"[{methodText}] [{caller}] Solution content was empty, retrying");
+
+					retries++;
+					continue;
+				}
+
+				if (!solverData.Solution.Cookies.Any())
+				{
+					Log($"[{methodText}] [{caller}] Solution cookies array was empty, retrying");
+
+					retries++;
+					continue;
+				}
+
+				bool shouldRetry = false;
+				foreach ((string searchKey, (string errorMessage, int retryDuration)) in CustomResolvers)
+				{
+					if (!content.Contains(searchKey, StringComparison.OrdinalIgnoreCase)) continue;
+					Log($"[{methodText}] [{caller}] {errorMessage}");
+					await Task.Delay(retryDuration);
+					retries++;
+					shouldRetry = true;
+					break;
+				}
+				if (shouldRetry) continue;
+
+				Log($"[{methodText}] [{caller}] ({statusCode}) {solverData.Solution.Url}");
+
+				return (
+					content,
+					statusCode,
+					solverData.Solution.Cookies.FirstOrDefault(x => x.Name == "cf_clearance")?.Value ?? ""
+				);
+			}
+
+			throw new InvalidOperationException($"Failed after {RetryLimit} retries");
+		}
+
+		public Task InitiateSession(string sessionId) => SendSessionCommandAsync("sessions.create", sessionId);
+		public Task DestroySessionAsync(string sessionId) => SendSessionCommandAsync("sessions.destroy", sessionId);
+
+		public async Task<(string, int, string)> PostSolver(string url, string sessionId, IEnumerable<KeyValuePair<string, string>>? postData = null, [CallerMemberName] string caller = "")
+		{
+			string? encodedPostData = null;
+
+			if (postData is not null)
+			{
+				using FormUrlEncodedContent formContent = new(postData);
+				encodedPostData = await formContent.ReadAsStringAsync();
+			}
+
+			return await SolverRequest(
+				JsonSerializer.Serialize(
+					new
 					{
 						cmd = "request.post",
 						url,
 						session = sessionId,
 						maxTimeout = 60000,
-						postData = postData is null ? null : await new FormUrlEncodedContent(postData).ReadAsStringAsync()
-					}),
-					Encoding.UTF8,
-					"application/json");
-
-				using HttpResponseMessage response = await _flareSolverClient.PostAsync(_flareSolver, body);
-				string json = await response.Content.ReadAsStringAsync();
-
-				if (json.Contains("\"error\""))
-				{
-					using JsonDocument document = JsonDocument.Parse(json);
-
-					Log($"[POST] [{caller}] FlareSolver encountered an error: {document.RootElement.GetProperty("message").GetString()}, retrying...");
-
-					retries++;
-					continue;
-				}
-				
-				FlareSolver? solverData = JsonSerializer.Deserialize<FlareSolver>(json);
-
-				if (solverData is null)
-					throw new InvalidOperationException($"SolverData somehow null: {json}");
-
-				if (string.IsNullOrEmpty(solverData.Solution.Content) || solverData.Solution.Content.Length < 15)
-				{
-					Log($"[POST] [{caller}] Solution content was empty, retrying");
-					retries++;
-					continue;
-				}
-
-				if (!solverData.Solution.Cookies.Any())
-				{
-					Log($"[POST] [{caller}] Solution cookies array was empty, retrying");
-					retries++;
-					continue;
-				}
-
-				if (solverData.Solution.Content.Contains("hackform", StringComparison.OrdinalIgnoreCase))
-				{
-					Log($"[POST] [{caller}] [SCRIBBLE-HACKFORM] Custom captcha found, retrying");
-					retries++;
-					continue;
-				}
-
-				if (solverData.Solution.Status == 429)
-				{
-					string? retryAfter = solverData.Solution.Headers
-						.FirstOrDefault(x => x.Key == "retry-after")
-						.Value;
-
-					if (int.TryParse(retryAfter, out int retryDuration))
-					{
-						Log($"[POST] [{caller}] Rate Limited, Retry-After header found: ({retryDuration} seconds), waiting...");
-
-						await Task.Delay(TimeSpan.FromSeconds(retryDuration));
-
-						retries++;
-						continue;
+						postData = encodedPostData
 					}
-				}
-				
-				Log($"[POST] [{caller}] ({solverData.Solution.Status}) {url}");
-
-				return (
-					solverData.Solution.Content ?? "",
-					solverData.Solution.Status ?? -1,
-					solverData.Solution.Cookies.FirstOrDefault(x => x.Name == "cf_clearance")?.Value ?? ""
-				);
-			}
-
-			throw new InvalidOperationException($"Failed after {retryLimit} retries");
+				), 
+				HttpMethod.Post, 
+				caller
+			);
 		}
 
 		public async Task<(string, int, string)> GetSolver(string url, string sessionId, [CallerMemberName] string caller = "")
 		{
-			if (string.IsNullOrEmpty(_flareSolver)) return ("", -1, "");
-
-			const int retryLimit = 5;
-			int retries = 0;
-
-			while (retries < retryLimit)
-			{
-				if (retries != 0)
-				{
-					Log($"Retry: {retries}/{retryLimit}");
-				}
-
-				StringContent body = new(JsonSerializer.Serialize(new
-				{
-					cmd = "request.get",
-					url,
-					session = sessionId,
-					maxTimeout = 60000
-				}), Encoding.UTF8, "application/json");
-
-				using HttpResponseMessage response = await _flareSolverClient.PostAsync(_flareSolver, body);
-				string json = await response.Content.ReadAsStringAsync();
-
-				if (json.Contains("\"error\""))
-				{
-					using JsonDocument doc = JsonDocument.Parse(json);
-					Log($"[GET] [{caller}] FlareSolver encountered an error: {doc.RootElement.GetProperty("message").GetString()}, retrying...");
-					retries++;
-					continue;
-				}
-
-				FlareSolver? solverData = JsonSerializer.Deserialize<FlareSolver>(json);
-
-				if (solverData is null)
-					throw new InvalidOperationException($"SolverData somehow null: {json}");
-
-				if (string.IsNullOrEmpty(solverData.Solution.Content))
-				{
-					Log($"[GET] [{caller}] Solution content was empty, retrying");
-					retries++;
-					continue;
-				}
-
-				if (!solverData.Solution.Cookies.Any())
-				{
-					Log($"[GET] [{caller}] Solution cookies array was empty, retrying");
-					retries++;
-					continue;
-				}
-
-				if (solverData.Solution.Content.Contains("hackform", StringComparison.OrdinalIgnoreCase))
-				{
-					Log($"[POST] [{caller}] [SCRIBBLE-HACKFORM] Custom captcha found, retrying");
-					retries++;
-					await Task.Delay(5000);
-					continue;
-				}
-
-				if (solverData.Solution.Status == 429)
-				{
-					string? retryAfter = solverData.Solution.Headers.FirstOrDefault(x => x.Key == "retry-after").Value;
-					if (int.TryParse(retryAfter, out int retryDuration))
+			return await SolverRequest(
+				JsonSerializer.Serialize
+				(
+					new
 					{
-						Log($"[GET] [{caller}] Rate Limited, Retry-After header found: ({retryDuration} seconds), waiting...");
-						await Task.Delay(TimeSpan.FromSeconds(retryDuration));
-						retries++;
-						continue;
+						cmd = "request.get",
+						url,
+						session = sessionId,
+						maxTimeout = 60000
 					}
-				}
-
-				Log($"[GET] [{caller}] ({solverData.Solution.Status}) {url}");
-				return (
-					solverData.Solution.Content ?? "", 
-					solverData.Solution.Status ?? -1, 
-					solverData.Solution.Cookies.FirstOrDefault(x => x.Name == "cf_clearance")?.Value ?? ""
-				);
-			}
-
-			throw new InvalidOperationException($"Failed after {retryLimit} retries");
+				), 
+				HttpMethod.Get, 
+				caller
+			);
 		}
 	}
 }
