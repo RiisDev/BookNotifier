@@ -23,9 +23,14 @@ namespace ScribbleHub.Project
 			try
 			{
 				await FlareClient.InitiateSession(SessionId);
-				
+
+				Log("Reading scribble data...");
 				List<ScribbleSaveBookRoot> currentBooks = await FileStoreService.LoadScribbleHubAsync();
+				Log($"Found: {currentBooks.Count} cached books");
+
+				Log("Fetching new scribble data...");
 				List<ScribbleReadingListStory> readingData = await api.GetReadingList();
+				Log($"Found: {readingData.Count} new books");
 				await FileStoreService.SaveScribbleHubAsync(readingData);
 
 				foreach (ScribbleReadingListStory story in readingData)

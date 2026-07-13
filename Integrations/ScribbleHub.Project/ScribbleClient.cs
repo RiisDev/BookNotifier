@@ -12,12 +12,15 @@ namespace ScribbleHub.Project
 		{
 			List<ScribbleReadingListStory> storyReturn = [];
 
+			Log("Grabbing ReadingList");
 			(string responseData, int _, _cloudflareCookie) = await Program.FlareClient.PostSolver("https://www.scribblehub.com/wp-admin/admin-ajax.php", Program.SessionId, [
 				new KeyValuePair<string, string>("action", "wi_profilerl"),
 				new KeyValuePair<string, string>("intAuthorID", userId),
 				new KeyValuePair<string, string>("isMobile", ""),
 				new KeyValuePair<string, string>("str_isapp", "0"),
 			]);
+
+			Log($"Reading List: {responseData} data");
 
 			if (responseData.Contains("need to log in before you can access this page", StringComparison.InvariantCultureIgnoreCase))
 				throw new InvalidOperationException("User is not logged in");

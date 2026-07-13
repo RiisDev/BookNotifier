@@ -101,7 +101,7 @@ namespace BookNotifier.Services
 				if (solverData is null)
 					throw new InvalidOperationException($"SolverData somehow null: {json}");
 
-				if (string.IsNullOrEmpty(solverData.Solution.Content))
+				if (string.IsNullOrEmpty(solverData.Solution.Content) || solverData.Solution.Content.Length < 15)
 				{
 					Log($"[POST] [{caller}] Solution content was empty, retrying");
 					retries++;
@@ -131,7 +131,7 @@ namespace BookNotifier.Services
 						continue;
 					}
 				}
-
+				
 				Log($"[POST] [{caller}] ({solverData.Solution.Status}) {url}");
 
 				return (
