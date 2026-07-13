@@ -207,6 +207,7 @@ namespace BookNotifier.Services
 				{
 					Log($"[POST] [{caller}] [SCRIBBLE-HACKFORM] Custom captcha found, retrying");
 					retries++;
+					await Task.Delay(5000);
 					continue;
 				}
 
