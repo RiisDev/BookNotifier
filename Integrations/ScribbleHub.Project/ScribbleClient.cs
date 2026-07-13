@@ -20,8 +20,6 @@ namespace ScribbleHub.Project
 				new KeyValuePair<string, string>("str_isapp", "0"),
 			]);
 
-			Log($"Reading List: {responseData} data");
-
 			if (responseData.Contains("need to log in before you can access this page", StringComparison.InvariantCultureIgnoreCase))
 				throw new InvalidOperationException("User is not logged in");
 
