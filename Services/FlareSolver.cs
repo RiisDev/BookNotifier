@@ -76,7 +76,7 @@ namespace BookNotifier.Services
 				using HttpResponseMessage response = await _flareSolverClient.PostAsync(_flareSolver, request);
 				string json = await response.Content.ReadAsStringAsync();
 
-				if (json.Contains("\"error\""))
+				if (json.Contains("\"error\"") && !json.Contains("Your IPAddress is banned"))
 				{
 					try
 					{
