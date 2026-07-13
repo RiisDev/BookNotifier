@@ -56,8 +56,7 @@ namespace BookNotifier.Services
 		
 		private static readonly IReadOnlyDictionary<string, (string ErrorMessage, int RetryDelay)> CustomResolvers = new Dictionary<string, (string, int)>
 		{
-			["hackform"] = ("[SCRIBBLE-HACKFORM] Custom captcha found, retrying", ScribbleDefaultRetry),
-			["Sorry, you have been blocked"] = ("[CF-IP-BAN] Cloudflare ban detected, waiting 30 minutes before retrying", 1_800_000)
+			["hackform"] = ("[SCRIBBLE-HACKFORM] Custom captcha found, retrying", ScribbleDefaultRetry)
 		};
 
 		private async Task<(string, int, string)> SolverRequest(string requestJson, HttpMethod method, [CallerMemberName] string caller = "")
@@ -108,11 +107,20 @@ namespace BookNotifier.Services
 						Log($"[{methodText}] [{caller}] ({statusCode}) [{(HttpStatusCode)statusCode}], Retry-After header found: ({retryDuration} seconds), waiting...");
 						await Task.Delay(TimeSpan.FromSeconds(retryDuration));
 					}
-					else if (statusCode == 422) Log($"[{methodText}] [{caller}] Unknown flaresolver data return found: {json}");
-					else
+					else switch (statusCode)
 					{
-						Log($"[{methodText}] [{caller}] ({statusCode}) [{(HttpStatusCode)statusCode}], Retry-After header not found, waiting 120 seconds...");
-						await Task.Delay(ScribbleDefaultRetry);
+						case 422:
+							Log($"[{methodText}] [{caller}] Unknown flaresolver data return found: {json}");
+							break;
+						case 403 when content.Contains("you have been blocked"):
+							Log($"[{methodText}] [{caller}] [CF-IP-BAN] Cloudflare ban detected, waiting 30 minutes before retrying");
+							retries = 5;
+							await Task.Delay(1_800_000);
+							break;
+						default:
+							Log($"[{methodText}] [{caller}] ({statusCode}) [{(HttpStatusCode)statusCode}], Retry-After header not found, waiting 120 seconds...");
+							await Task.Delay(ScribbleDefaultRetry);
+							break;
 					}
 
 					retries++;
