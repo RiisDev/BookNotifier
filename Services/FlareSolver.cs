@@ -56,7 +56,8 @@ namespace BookNotifier.Services
 		
 		private static readonly IReadOnlyDictionary<string, (string ErrorMessage, int RetryDelay)> CustomResolvers = new Dictionary<string, (string, int)>
 		{
-			["hackform"] = ("[SCRIBBLE-HACKFORM] Custom captcha found, retrying", ScribbleDefaultRetry)
+			["hackform"] = ("[SCRIBBLE-HACKFORM] Custom captcha found, retrying", ScribbleDefaultRetry),
+			["Sorry, you have been blocked"] = ("[CF-IP-BAN] Cloudflare ban detected, waiting 30 minutes before retrying", 1_800_000)
 		};
 
 		private async Task<(string, int, string)> SolverRequest(string requestJson, HttpMethod method, [CallerMemberName] string caller = "")
