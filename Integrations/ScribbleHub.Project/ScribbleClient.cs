@@ -68,7 +68,7 @@ namespace ScribbleHub.Project
 			};
 			using HttpResponseMessage response = await Program.FlareClient.CfCookiePostRequest("https://www.scribblehub.com/wp-admin/admin-ajax.php", _cloudflareCookie, new FormUrlEncodedContent(formData));
 			string responseContent = await response.Content.ReadAsStringAsync();
-			Log($"Book TOC Status -> ({response.StatusCode})"); Log($"Book TOC Status -> ({response.StatusCode})");
+			Log($"Book TOC Status -> ({response.StatusCode})");
 
 			MatchCollection chapterMatches = Regex.Matches(responseContent, "title=\"([^\"]+)\"[^>]*href=\"([^\"]+)\"");
 			List<ScribbleChapter> chapters = [];

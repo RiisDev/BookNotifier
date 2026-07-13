@@ -115,6 +115,13 @@ namespace BookNotifier.Services
 					continue;
 				}
 
+				if (solverData.Solution.Content.Contains("hackform", StringComparison.OrdinalIgnoreCase))
+				{
+					Log($"[POST] [{caller}] [SCRIBBLE-HACKFORM] Custom captcha found, retrying");
+					retries++;
+					continue;
+				}
+
 				if (solverData.Solution.Status == 429)
 				{
 					string? retryAfter = solverData.Solution.Headers
@@ -195,7 +202,14 @@ namespace BookNotifier.Services
 					retries++;
 					continue;
 				}
-				
+
+				if (solverData.Solution.Content.Contains("hackform", StringComparison.OrdinalIgnoreCase))
+				{
+					Log($"[POST] [{caller}] [SCRIBBLE-HACKFORM] Custom captcha found, retrying");
+					retries++;
+					continue;
+				}
+
 				if (solverData.Solution.Status == 429)
 				{
 					string? retryAfter = solverData.Solution.Headers.FirstOrDefault(x => x.Key == "retry-after").Value;
