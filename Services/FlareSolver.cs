@@ -76,8 +76,16 @@ namespace BookNotifier.Services
 				using HttpResponseMessage response = await _flareSolverClient.PostAsync(_flareSolver, request);
 				string json = await response.Content.ReadAsStringAsync();
 
-				if (json.Contains("\"error\"") && !json.Contains("Your IPAddress is banned"))
+				if (json.Contains("\"error\""))
 				{
+					if (json.Contains("Cloudflare has blocked this request"))
+					{
+						Log($"[{methodText}] [{caller}] [CF-IP-BAN] Cloudflare ban detected, waiting 30 minutes before retrying");
+						retries = 5;
+						await Task.Delay(1_800_000);
+						continue;
+					}
+
 					try
 					{
 						using JsonDocument document = JsonDocument.Parse(json);
@@ -111,11 +119,6 @@ namespace BookNotifier.Services
 					{
 						case 422:
 							Log($"[{methodText}] [{caller}] Unknown flaresolver data return found: {json}");
-							break;
-						case 403 when content.Contains("you have been blocked"):
-							Log($"[{methodText}] [{caller}] [CF-IP-BAN] Cloudflare ban detected, waiting 30 minutes before retrying");
-							retries = 5;
-							await Task.Delay(1_800_000);
 							break;
 						default:
 							Log($"[{methodText}] [{caller}] ({statusCode}) [{(HttpStatusCode)statusCode}], Retry-After header not found, waiting 120 seconds...");
