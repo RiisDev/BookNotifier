@@ -32,8 +32,13 @@ namespace BookNotifier.Integrations.Ao3
 				{
 					if (existingStoryChapter.TryGetValue(newEntry.WorkId, out string? cachedLastUrl))
 					{
-						string latestChapterUrl = newEntry.Chapters.LastOrDefault()?.Url ?? "";
-						string latestChapterTitle = newEntry.Chapters.LastOrDefault()?.Title ?? "";
+						string latestChapterUrl = newEntry.Chapters.LastOrDefault()?.Url.Trim() ?? "";
+						string latestChapterTitle = newEntry.Chapters.LastOrDefault()?.Title.Trim() ?? "";
+
+						if (!latestChapterUrl.Contains("/works/"))
+						{
+							latestChapterUrl = latestChapterTitle.Replace("https://archiveofourown.org/", $"https://archiveofourown.org/works/{newEntry.WorkId}/chapters/");
+						}
 
 						if (StringComparer.Ordinal.Equals(latestChapterUrl, cachedLastUrl)) continue;
 

@@ -32,6 +32,14 @@ One container, one `.env` file. Run one notifier or all three concurrently.
 
 ---
 
+## Launch Options
+
+| Launch Parameter | Description																			|
+| `--runonce`      | No matter the retry duration, the program will exit after all notifiers run.			|
+| `--ignore-post`  | Incase you just want the data files, you can ignore posting and it will run normally.  |
+
+---
+
 ## 🚀 Setup
 
 ### 1. Pull the Image

@@ -52,6 +52,12 @@ namespace BookNotifier.Services
 			);
 
 			using HttpResponseMessage response = await _flareSolverClient.PostAsync(_flareSolver, body);
+			string stringData = await response.Content.ReadAsStringAsync();
+
+			if (stringData.Contains("\"error\""))
+			{
+				Log($"Failed to run {command}: {GetErrorMessage(stringData)}");
+			}
 		}
 		
 		private static readonly IReadOnlyDictionary<string, (string ErrorMessage, int RetryDelay)> CustomResolvers = new Dictionary<string, (string, int)>
@@ -78,7 +84,9 @@ namespace BookNotifier.Services
 
 				if (json.Contains("\"error\""))
 				{
-					if (json.Contains("Cloudflare has blocked this request"))
+					string errorMessage = GetErrorMessage(json);
+
+					if (errorMessage == "Cloudflare has blocked your IP, try again later...")
 					{
 						Log($"[{methodText}] [{caller}] [CF-IP-BAN] Cloudflare ban detected, waiting 30 minutes before retrying");
 						retries = 5;
@@ -86,15 +94,7 @@ namespace BookNotifier.Services
 						continue;
 					}
 
-					try
-					{
-						using JsonDocument document = JsonDocument.Parse(json);
-						Log($"[{methodText}] [{caller}] FlareSolver encountered an error: {document.RootElement.GetProperty("message").GetString()}, retrying...");
-					}
-					catch
-					{
-						Log($"[{methodText}] [{caller}] FlareSolver encountered an error: {json}, retrying...");
-					}
+					Log($"[{methodText}] [{caller}] FlareSolver encountered an error: {errorMessage}, retrying...");
 					retries++;
 					continue;
 				}
@@ -215,6 +215,24 @@ namespace BookNotifier.Services
 				HttpMethod.Get, 
 				caller
 			);
+		}
+
+		private static string GetErrorMessage(string json)
+		{
+			if (json.Contains("Cloudflare has blocked this request"))
+			{
+				return "Cloudflare has blocked your IP, try again later...";
+			}
+
+			try
+			{
+				using JsonDocument document = JsonDocument.Parse(json);
+				return document.RootElement.GetProperty("message").GetString() ?? json;
+			}
+			catch
+			{
+				return json;
+			}
 		}
 	}
 }

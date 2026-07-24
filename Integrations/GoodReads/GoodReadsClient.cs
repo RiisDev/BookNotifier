@@ -331,8 +331,7 @@ namespace BookNotifier.Integrations.GoodReads
 						TimeSpan delay =
 							TimeSpan.FromSeconds(Math.Pow(2, attempt));
 
-						Debug.WriteLine(
-							$"Retry {attempt}/{maxRetries} for {url} due to {(int)response.StatusCode}. Waiting {delay.TotalSeconds}s");
+						LogError($"Retry {attempt}/{maxRetries} for {url} due to {(int)response.StatusCode}. Waiting {delay.TotalSeconds}s");
 
 						await Task.Delay(delay, cancellationToken);
 
@@ -377,61 +376,100 @@ namespace BookNotifier.Integrations.GoodReads
 					continue;
 				}
 
-
-				foreach (GoodReadsBook book in books)
-				{
-					GoodReadsKnownBook knownBook = new()
+				List<GoodReadsKnownBook> authorKnownBooks = books
+					.Select(book => new GoodReadsKnownBook
 					{
 						Title = book.Title,
 						AuthorName = author.Name,
 						Url = book.Url.ToString(),
 						SeriesName = null,
 						SeriesPosition = null
-					};
+					})
+					.ToList();
 
+				List<GoodReadsKnownBook> seriesKnownBooks = details.Series?.Books
+					.Select(seriesBook => new GoodReadsKnownBook
+					{
+						Title = seriesBook.Title,
+						AuthorName = author.Name,
+						Url = seriesBook.Url.ToString(),
+						SeriesName = details.Series.Name,
+						SeriesPosition = seriesBook.Position
+					})
+					.ToList() ?? [];
+
+				bool isNewAuthor = authorKnownBooks.Concat(seriesKnownBooks).All(kb => !knownBooks.Contains(FileStoreService.CreateGoodReadsKey(kb)));
+
+				if (isNewAuthor)
+				{
+					if (!isFirstRun)
+					{
+						await NotificationService.SendNewGoodReadsAuthorAddedAsync(author.Name, author.Url.ToString());
+					}
+
+					foreach (GoodReadsKnownBook knownBook in authorKnownBooks.Concat(seriesKnownBooks))
+					{
+						knownBooks.Add(FileStoreService.CreateGoodReadsKey(knownBook));
+						updatedKnownBooks.Add(knownBook);
+					}
+
+					continue;
+				}
+
+				foreach (GoodReadsKnownBook knownBook in authorKnownBooks)
+				{
 					string key = FileStoreService.CreateGoodReadsKey(knownBook);
 
 					if (!knownBooks.Contains(key))
 					{
 						if (!isFirstRun)
-							await NotificationService.SendNewGoodReadsAuthorBookAsync(author.Name, book.Title, book.Url.ToString());
+							await NotificationService.SendNewGoodReadsAuthorBookAsync(author.Name, knownBook.Title, knownBook.Url);
 
 						knownBooks.Add(key);
 					}
 
 					updatedKnownBooks.Add(knownBook);
 				}
-				
-				if (details.Series is not null)
+
+				if (details.Series is not null && seriesKnownBooks.Count > 0)
 				{
-					foreach (GoodReadsSeriesBook seriesBook in details.Series.Books)
+					bool isNewSeries = seriesKnownBooks.All(kb => !knownBooks.Contains(FileStoreService.CreateGoodReadsKey(kb)));
+
+					if (isNewSeries)
 					{
-						GoodReadsKnownBook knownSeriesBook = new()
+						if (!isFirstRun)
 						{
-							Title = seriesBook.Title,
-							AuthorName = author.Name,
-							Url = seriesBook.Url.ToString(),
-							SeriesName = details.Series.Name,
-							SeriesPosition = seriesBook.Position
-						};
-
-						string key = FileStoreService.CreateGoodReadsKey(knownSeriesBook);
-
-						if (!knownBooks.Contains(key))
-						{
-							if (!isFirstRun)
-								await NotificationService.SendNewGoodReadsSeriesBookAsync(
-									author.Name,
-									seriesBook.Title,
-									seriesBook.Url.ToString(),
-									details.Series.Name,
-									seriesBook.Position.ToString()
-								);
-
-							knownBooks.Add(key);
+							await NotificationService.SendNewGoodReadsSeriesDetectedAsync(author.Name, details.Series.Name, details.Series.Url.ToString());
 						}
 
-						updatedKnownBooks.Add(knownSeriesBook);
+						foreach (GoodReadsKnownBook knownSeriesBook in seriesKnownBooks)
+						{
+							knownBooks.Add(FileStoreService.CreateGoodReadsKey(knownSeriesBook));
+							updatedKnownBooks.Add(knownSeriesBook);
+						}
+					}
+					else
+					{
+						foreach (GoodReadsKnownBook knownSeriesBook in seriesKnownBooks)
+						{
+							string key = FileStoreService.CreateGoodReadsKey(knownSeriesBook);
+
+							if (!knownBooks.Contains(key))
+							{
+								if (!isFirstRun)
+									await NotificationService.SendNewGoodReadsSeriesBookAsync(
+										author.Name,
+										knownSeriesBook.Title,
+										knownSeriesBook.Url,
+										details.Series.Name,
+										knownSeriesBook.SeriesPosition.ToString() ?? ""
+									);
+
+								knownBooks.Add(key);
+							}
+
+							updatedKnownBooks.Add(knownSeriesBook);
+						}
 					}
 				}
 			}

@@ -6,11 +6,15 @@ namespace BookNotifier.Services
 {
 	public enum NotificationEvent
 	{
+		FlareSolverError,
+
 		// RoyalRoad
 		NewRoyalRoadFiction,
 		NewRoyalRoadChapter,
 
 		// GoodReads
+		NewGoodReadsAuthor,
+		NewGoodReadsSeries,
 		NewGoodReadsAuthorBook,
 		NewGoodReadsSeriesBook,
 
@@ -52,6 +56,14 @@ namespace BookNotifier.Services
 			}
 		};
 
+		public static Task SendFlareSolverError(string message) =>
+			SendAsync(new NotificationPayload
+			{
+				Event = NotificationEvent.FlareSolverError,
+				Title = "FlareSolver Encountered an Error",
+				Author = $"Error: {message}",
+				Url = ""
+			});
 
 		// GoodReads
 		public static Task SendNewGoodReadsAuthorBookAsync(string author, string title, string url) =>
@@ -72,6 +84,25 @@ namespace BookNotifier.Services
 				Url = url,
 				SeriesName = seriesName,
 				SeriesPosition = seriesPosition
+			});
+
+		public static Task SendNewGoodReadsAuthorAddedAsync(string author, string url) =>
+			SendAsync(new NotificationPayload
+			{
+				Event = NotificationEvent.NewGoodReadsAuthor,
+				Title = "",
+				Author = author,
+				Url = url
+			});
+
+		public static Task SendNewGoodReadsSeriesDetectedAsync(string author, string seriesName, string url) =>
+			SendAsync(new NotificationPayload
+			{
+				Event = NotificationEvent.NewGoodReadsSeries,
+				Title = "",
+				Author = author,
+				Url = url,
+				SeriesName = seriesName
 			});
 
 		// RoyalRoad
@@ -160,6 +191,8 @@ namespace BookNotifier.Services
 
 		private static async Task SendAsync(NotificationPayload payload)
 		{
+			if (Program.IgnorePost) return;
+
 			string? webhook = Environment.GetEnvironmentVariable("WEBHOOK");
 
 			if (string.IsNullOrWhiteSpace(webhook))
@@ -179,8 +212,8 @@ namespace BookNotifier.Services
 				{
 					new
 					{
-						title       = embedTitle,
-						description,
+						title       = embedTitle.Trim(),
+						description = description.Trim(),
 						color,
 						timestamp   = payload.DetectedAtUtc,
 						thumbnail   = new { url = avatarUrl }
@@ -207,6 +240,38 @@ namespace BookNotifier.Services
 		private static (int Color, string EmbedTitle, string Description) BuildEmbed(NotificationPayload payload) =>
 			payload.Event switch
 			{
+				NotificationEvent.FlareSolverError => (
+					123,
+					"FlareSolver Error",
+					$"""
+					 **{payload.Title}**
+					 ``{payload.Author}``
+					 """
+				),
+
+				NotificationEvent.NewGoodReadsAuthor => (
+					15762959,
+					"New Author Found!",
+					$"""
+					 *{payload.Author}*
+
+					 ({payload.Url})
+					 """
+				),
+
+				NotificationEvent.NewGoodReadsSeries => (
+					5814783,
+					"New Series Found!",
+					$"""
+					 **{payload.Title}**
+					 by *{payload.Author}*
+
+					 Series: {payload.SeriesName}
+
+					 ({payload.Url})
+					 """
+				),
+
 				NotificationEvent.NewGoodReadsAuthorBook => (
 					15762959,
 					"New Author Release!",
@@ -324,13 +389,12 @@ namespace BookNotifier.Services
 				_ => (0, "Book Notification", $"**{payload.Title}** by *{payload.Author}*\n\n({payload.Url})")
 			};
 
-		// ----------------------------------------
-		// Platform metadata
-		// ----------------------------------------
 
 		private static (string AvatarUrl, string BotUsername) GetPlatformMeta(NotificationEvent @event) =>
 			@event switch
 			{
+				NotificationEvent.FlareSolverError => ("https://www.google.com/s2/favicons?domain=flaresolverr.com&sz=48", "FlareSolver"),
+
 				NotificationEvent.NewAo3Chapter or
 					NotificationEvent.NewAo3Story =>
 					(
@@ -348,6 +412,8 @@ namespace BookNotifier.Services
 
 
 				NotificationEvent.NewGoodReadsAuthorBook or
+				NotificationEvent.NewGoodReadsAuthor or
+				NotificationEvent.NewGoodReadsSeries or
 				NotificationEvent.NewGoodReadsSeriesBook =>
 					(
 						"https://www.google.com/s2/favicons?domain=goodreads.com&sz=48",

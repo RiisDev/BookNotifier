@@ -12,6 +12,8 @@ namespace BookNotifier
 	internal class Program
 	{
 		public static FlareSolverClient FlareClient = new();
+		private static bool RunOnce { get; set; }
+		public static bool IgnorePost { get; set; }
 
 		public static async Task Main(string[] args)
 		{
@@ -21,6 +23,12 @@ namespace BookNotifier
 
 			AppDomain.CurrentDomain.UnhandledException += (_, f) => LogError(f.ExceptionObject.ToString() ?? "Unhandled exception");
 			TaskScheduler.UnobservedTaskException += (_, ef) => LogError(ef.Exception.Message);
+
+			RunOnce = args.Contains("--runonce", StringComparer.OrdinalIgnoreCase);
+			IgnorePost = args.Contains("--ignore-post", StringComparer.OrdinalIgnoreCase);
+
+			Log($"Running Once: {RunOnce}");
+			Log($"Ignoring Discord Post: {IgnorePost}");
 
 			_ = new EnvService();
 
@@ -34,7 +42,7 @@ namespace BookNotifier
 				.ToArray();
 
 			if (notifiers.Length == 0)
-				throw new InvalidOperationException("NOTIFIER is empty. Expected one or more of: goodreads, scribblehub, literotica.");
+				throw new InvalidOperationException("NOTIFIER is empty. Expected one or more of: goodreads, scribblehub, literotica, royalroad, ao3.");
 
 			Log($"Starting notifiers: {string.Join(", ", notifiers)}");
 
@@ -50,6 +58,8 @@ namespace BookNotifier
 			});
 
 			await Task.WhenAll(notifierTasks);
+
+			if (RunOnce) Environment.Exit(0);
 		}
 
 		[SuppressMessage("ReSharper", "FunctionNeverReturns")]
@@ -68,13 +78,17 @@ namespace BookNotifier
 					LogError($"[{name}] Error: {ex.Message}");
 				}
 
+				if (RunOnce) break;
+
 				Log($"[{name}] Waiting {recheckMs}ms...");
-				await Task.Delay((int)recheckMs);
+				await Task.Delay(TimeSpan.FromMilliseconds(recheckMs));
 			}
 		}
 
 		private static long GetRecheckMs(string prefix)
 		{
+			if (RunOnce) return long.MaxValue;
+
 			string key = $"{prefix}_RECHECK_MS";
 			string raw = (Environment.GetEnvironmentVariable(key)
 				?? throw new InvalidOperationException($"Missing {key} environment variable."))
