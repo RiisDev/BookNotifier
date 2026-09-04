@@ -51,7 +51,7 @@ namespace ScribbleHub.Project
 				{
 					if (data is not null && data.Chapters.TryFind(x => x.Id == chapterId, out _))
 					{
-						Log("Story cache already contains latest chapter, skipping lookup...");
+						Log($"Story cache for {title} already contains latest chapter, skipping lookup...");
 						continue;
 					}
 				}
