@@ -116,7 +116,7 @@ namespace BookNotifier.Integrations.ScribbleHub
 
 			await Task.Delay(500);
 
-			foreach (ScribbleReadingListStory story in storyReturn)
+			foreach (ScribbleReadingListStory story in storyReturn.Where(story => story.Chapters.Count <= 0))
 			{
 				story.Chapters.AddRange(await GetBookToc(story.Id));
 				story.Chapters.Reverse();
