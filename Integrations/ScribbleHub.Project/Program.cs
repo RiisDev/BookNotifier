@@ -24,6 +24,8 @@ namespace ScribbleHub.Project
 			{
 				await FlareClient.InitiateSession(SessionId);
 
+				await FlareClient.GetSolver("https://www.scribblehub.com/", SessionId);
+
 				Log("Reading scribble data...");
 				List<ScribbleSaveBookRoot> currentBooks = await FileStoreService.LoadScribbleHubAsync();
 				Log($"Found: {currentBooks.Count} cached books");
@@ -50,8 +52,7 @@ namespace ScribbleHub.Project
 					if (latestCurrentChapter.Id == latestCachedChapter.Id) continue;
 
 					Log($"[scribblehub] New chapter: {story.Name} -> {latestCurrentChapter.Title}");
-					await NotificationService.SendNewScribbleChapterAsync(story.Name, story.Link,
-						latestCurrentChapter.Title, latestCurrentChapter.Link);
+					await NotificationService.SendNewScribbleChapterAsync(story.Name, story.Link, latestCurrentChapter.Title, latestCurrentChapter.Link);
 				}
 			}
 			catch (Exception ex)

@@ -6,14 +6,12 @@ namespace ScribbleHub.Project
 {
 	public class ScribbleClient(string userId)
 	{
-		private string _cloudflareCookie = "";
-		
 		public async Task<List<ScribbleReadingListStory>> GetReadingList()
 		{
 			List<ScribbleReadingListStory> storyReturn = [];
 
 			Log("Grabbing ReadingList");
-			(string responseData, int _, _cloudflareCookie) = await Program.FlareClient.PostSolver("https://www.scribblehub.com/wp-admin/admin-ajax.php", Program.SessionId, [
+			(string responseData, _, _) = await Program.FlareClient.PostSolver("https://www.scribblehub.com/wp-admin/admin-ajax.php", Program.SessionId, [
 				new KeyValuePair<string, string>("action", "wi_profilerl"),
 				new KeyValuePair<string, string>("intAuthorID", userId),
 				new KeyValuePair<string, string>("isMobile", ""),
@@ -58,23 +56,20 @@ namespace ScribbleHub.Project
 
 		public async Task<List<ScribbleChapter>> GetBookToc(string bookId)
 		{
-			Dictionary<string, string> formData = new()
-			{
-				{"action", "wi_gettocchp"},
-				{"strSID", bookId},
-				{"strFic", "read"}
-			};
-			using HttpResponseMessage response = await Program.FlareClient.CfCookiePostRequest("https://www.scribblehub.com/wp-admin/admin-ajax.php", _cloudflareCookie, new FormUrlEncodedContent(formData));
-			string responseContent = await response.Content.ReadAsStringAsync();
-			Log($"Book TOC Status -> ({response.StatusCode})");
+			(string responseData, int status, _) = await Program.FlareClient.PostSolver("https://www.scribblehub.com/wp-admin/admin-ajax.php", Program.SessionId, [
+				new KeyValuePair<string, string>("action", "wi_getreleases_pagination"),
+				new KeyValuePair<string, string>("mypostid", bookId),
+				new KeyValuePair<string, string>("pagenum", "-1")
+			]); 
+			Log($"Book TOC Status -> ({status})");
 
-			MatchCollection chapterMatches = Regex.Matches(responseContent, "title=\"([^\"]+)\"[^>]*href=\"([^\"]+)\"");
+			MatchCollection chapterMatches = Regex.Matches(responseData, "<a\\b[^>]*href=\"([^\"]+)\"[^>]*>([^<]+)<\\/a>");
 			List<ScribbleChapter> chapters = [];
 
 			foreach (Match match in chapterMatches)
 			{
-				string title = match.Groups[1].Value.Trim().HtmlDecode();
-				string link = match.Groups[2].Value.Trim().HtmlDecode();
+				string title = match.Groups[2].Value.Trim().HtmlDecode();
+				string link = match.Groups[1].Value.Trim().HtmlDecode();
 				string id = link[link.Trim('/').LastIndexOf('/')..].Trim('/');
 
 				chapters.Add(new ScribbleChapter(title, link, id));
