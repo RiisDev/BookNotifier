@@ -34,18 +34,22 @@ namespace BookNotifier.Integrations.Ao3
 					{
 						string latestChapterUrl = newEntry.Chapters.LastOrDefault()?.Url.Trim() ?? "";
 						string latestChapterTitle = newEntry.Chapters.LastOrDefault()?.Title.Trim() ?? "";
+						string chapterFullUrl = latestChapterUrl;
 
 						if (!latestChapterUrl.Contains("/works/"))
 						{
-							latestChapterUrl = latestChapterTitle.Replace("https://archiveofourown.org/", $"https://archiveofourown.org/works/{newEntry.WorkId}/chapters/");
+							chapterFullUrl = latestChapterUrl.Replace("https://archiveofourown.org/", $"https://archiveofourown.org/works/{newEntry.WorkId}/chapters/");
 						}
 
 						if (StringComparer.Ordinal.Equals(latestChapterUrl, cachedLastUrl)) continue;
+						if (StringComparer.Ordinal.Equals(chapterFullUrl, cachedLastUrl)) continue;
 
-						await NotificationService.SendNewAo3ChapterAsync(newEntry.Title, newEntry.Url, latestChapterTitle, latestChapterUrl);
+						Log($"New Chapter Detected: {newEntry.Title}");
+						await NotificationService.SendNewAo3ChapterAsync(newEntry.Title, newEntry.Url, latestChapterTitle, chapterFullUrl);
 					}
 					else
 					{
+						Log($"New Fiction Detected: {newEntry.Title}");
 						await NotificationService.SendNewAo3FictionAsync(newEntry.Title, newEntry.Url);
 					}
 				}

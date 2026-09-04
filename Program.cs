@@ -11,6 +11,9 @@ namespace BookNotifier
 {
 	internal class Program
 	{
+		// Declare first or else flareclient will not register the env
+		private static readonly EnvService Env = new();
+
 		public static FlareSolverClient FlareClient = new();
 		private static bool RunOnce { get; set; }
 		public static bool IgnorePost { get; set; }
@@ -29,9 +32,8 @@ namespace BookNotifier
 
 			Log($"Running Once: {RunOnce}");
 			Log($"Ignoring Discord Post: {IgnorePost}");
-
-			_ = new EnvService();
-
+			Log($"Env Vars Found: {Env.Variables.Count}");
+			
 			Directory.CreateDirectory(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data"));
 
 			string[] notifiers = (Environment.GetEnvironmentVariable("NOTIFIER")

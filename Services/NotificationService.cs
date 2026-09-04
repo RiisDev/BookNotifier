@@ -373,14 +373,14 @@ namespace BookNotifier.Services
 					 """
 				),
 
+				// Don't ask me, even with a trim it kept new lining.
 				NotificationEvent.NewAo3Chapter => (
 					16750848,
 					"New Chapter Published!",
 					$"""
 					 **{payload.Title}** has a new chapter!
 
-					 **{payload.ChapterTitle}**
-
+					 **{payload.ChapterTitle?.Trim()}**
 					 ({payload.ChapterUrl})
 					 """
 				),
