@@ -1,4 +1,4 @@
-﻿using BookNotifier.Integrations;
+﻿using BookNotifier.Integrations.ScribbleHub;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;

@@ -1,11 +1,11 @@
-﻿using BookNotifier.Integrations.GoodReads;
+﻿using BookNotifier.Integrations.Ao3;
+using BookNotifier.Integrations.GoodReads;
 using BookNotifier.Integrations.Literotica;
-using System.Diagnostics;
+using BookNotifier.Integrations.RoyalRoad;
+using BookNotifier.Integrations.ScribbleHub;
+using BookNotifier.Services;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using BookNotifier.Integrations.Ao3;
-using BookNotifier.Integrations.RoyalRoad;
-using BookNotifier.Services;
 
 namespace BookNotifier
 {
@@ -137,38 +137,11 @@ namespace BookNotifier
 
 		private static async Task RunScribbleHubAsync()
 		{
-			using Process process = new();
-			process.StartInfo = new ProcessStartInfo
-			{
-				FileName = "dotnet",
-				Arguments = "ScribbleHub.Project.dll",
-				WorkingDirectory = AppContext.BaseDirectory,
-				RedirectStandardOutput = true,
-				RedirectStandardError = true,
-				UseShellExecute = false,
-				CreateNoWindow = true
-			};
+			string userId = Environment.GetEnvironmentVariable("SCRIBBLEHUB_USERID") ?? throw new InvalidOperationException("Missing required USERID environment variable");
+			
+			ScribbleClient api = new(userId);
 
-			process.OutputDataReceived += (_, args) =>
-			{
-				if (!string.IsNullOrEmpty(args.Data))
-					Log($"[ScribbleHub.Project] {args.Data}");
-			};
-
-			process.ErrorDataReceived += (_, args) =>
-			{
-				if (!string.IsNullOrEmpty(args.Data))
-					LogError($"[ScribbleHub.Project] {args.Data}");
-			};
-
-			process.Start();
-			process.BeginOutputReadLine();
-			process.BeginErrorReadLine();
-
-			await process.WaitForExitAsync();
-
-			if (process.ExitCode != 0)
-				LogError($"[ScribbleHub.Project] Exited with code {process.ExitCode}");
+			await api.RunCheck();
 		}
 
 		private static Task RunLiteroticaAsync()
