@@ -44,11 +44,14 @@ namespace ScribbleHub.Project
 				Log($"Found Story: {title.HtmlDecode()} -> {chapterName.HtmlDecode()}");
 				storyReturn.Add(new ScribbleReadingListStory(title, storyLink, storyId, []));
 			}
-			
+
+			await Task.Delay(500);
+
 			foreach (ScribbleReadingListStory story in storyReturn)
 			{
 				story.Chapters.AddRange(await GetBookToc(story.Id));
 				story.Chapters.Reverse();
+				await Task.Delay(500);
 			}
 			
 			return storyReturn;

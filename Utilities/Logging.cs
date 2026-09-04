@@ -13,11 +13,15 @@ namespace BookNotifier.Utilities
 		{
 			lock (LogLock)
 			{
-				string fileName = Path.GetFileName(filePath);
-				string data = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] [{fileName}.{caller}] {message}";
-				Console.WriteLine(data);
-				Debug.WriteLine(data);
-				File.AppendAllText(LogDirectory, data + "\n");
+				try
+				{
+					string fileName = Path.GetFileName(filePath);
+					string data = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] [{fileName}.{caller}] {message}";
+					Console.WriteLine(data);
+					Debug.WriteLine(data);
+					File.AppendAllText(LogDirectory, data + "\n");
+				}
+				catch{/**/}
 			}
 		}
 
