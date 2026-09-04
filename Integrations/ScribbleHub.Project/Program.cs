@@ -31,7 +31,7 @@ namespace ScribbleHub.Project
 				Log($"Found: {currentBooks.Count} cached books");
 
 				Log("Fetching new scribble data...");
-				List<ScribbleReadingListStory> readingData = await api.GetReadingList();
+				List<ScribbleReadingListStory> readingData = await api.GetReadingList(currentBooks);
 				Log($"Found: {readingData.Count} new books");
 				await FileStoreService.SaveScribbleHubAsync(readingData);
 

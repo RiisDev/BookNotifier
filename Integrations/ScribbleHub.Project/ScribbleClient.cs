@@ -1,12 +1,13 @@
 ﻿using System.Text.RegularExpressions;
 using BookNotifier.Integrations;
 using BookNotifier.Utilities;
+using LiteroticaApi.DataObjects;
 
 namespace ScribbleHub.Project
 {
 	public class ScribbleClient(string userId)
 	{
-		public async Task<List<ScribbleReadingListStory>> GetReadingList()
+		public async Task<List<ScribbleReadingListStory>> GetReadingList(List<ScribbleSaveBookRoot> currentCache)
 		{
 			List<ScribbleReadingListStory> storyReturn = [];
 
@@ -41,7 +42,20 @@ namespace ScribbleHub.Project
 					continue;
 				}
 
-				Log($"Found Story: {title.HtmlDecode()} -> {chapterName.HtmlDecode()}");
+				title = title.HtmlDecode();
+				chapterName = chapterName.HtmlDecode();
+
+				Log($"Found Story: {title} -> {chapterName}");
+
+				if (currentCache.TryFind(x=> x.Id == storyId, out ScribbleSaveBookRoot? data))
+				{
+					if (data is not null && data.Chapters.TryFind(x => x.Id == chapterId, out _))
+					{
+						Log("Story cache already contains latest chapter, skipping lookup...");
+						continue;
+					}
+				}
+
 				storyReturn.Add(new ScribbleReadingListStory(title, storyLink, storyId, []));
 			}
 

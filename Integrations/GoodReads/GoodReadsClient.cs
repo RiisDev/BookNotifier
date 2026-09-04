@@ -147,7 +147,7 @@ namespace BookNotifier.Integrations.GoodReads
 
 		public async Task<GoodReadsBookDetails> GetBookSeriesDetails(GoodReadsBookDetails details)
 		{
-			Log("[goodreads] Series detected, grabbing series info...");
+			Log($"[goodreads] {details.Book.Title} Series detected, grabbing series info...");
 			if (details.Series is null)
 			{
 				return details;
