@@ -7,15 +7,12 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 COPY ["BookNotifier.csproj", "."]
-COPY ["Integrations/ScribbleHub.Project/ScribbleHub.Project.csproj", "Integrations/ScribbleHub.Project/"]
 
 RUN dotnet restore "BookNotifier.csproj"
-RUN dotnet restore "Integrations/ScribbleHub.Project/ScribbleHub.Project.csproj"
 
 COPY . .
 
 RUN dotnet publish "BookNotifier.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-RUN dotnet publish "Integrations/ScribbleHub.Project/ScribbleHub.Project.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
