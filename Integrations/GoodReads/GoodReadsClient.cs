@@ -11,22 +11,13 @@ namespace BookNotifier.Integrations.GoodReads
 	{
 
 
-		private readonly HttpClient _client = new(new HttpClientHandler
-		{
-			AllowAutoRedirect = true,
-			AutomaticDecompression = DecompressionMethods.All,
-			UseCookies = true
-		})
-		{
-			DefaultRequestHeaders =
-			{
-				{
-					"User-Agent",
-					"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0 GoodReadsWatcher/1.0"
-				}
-			},
-			Timeout = TimeSpan.FromSeconds(15)
-		};
+		private static readonly Uri BaseUri = new("https://www.goodreads.com");
+
+		private static string NormalizeUrl(string href) => new Uri(BaseUri, href).GetLeftPart(UriPartial.Path);
+
+		private readonly HttpClient _client = ScraperHttpClient.Create(
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0 GoodReadsWatcher/1.0",
+			TimeSpan.FromSeconds(15));
 
 		public void Dispose()
 		{
@@ -161,8 +152,6 @@ namespace BookNotifier.Integrations.GoodReads
 
 			HashSet<string> seen = [];
 
-			Uri baseUri = new("https://www.goodreads.com");
-
 			IEnumerable<HtmlElement> anchors = doc.All
 				.Where(x => x.HasAttribute("href"))
 				.Where(x => x.GetAttribute("href")!.Contains("/book/show"));
@@ -174,9 +163,7 @@ namespace BookNotifier.Integrations.GoodReads
 				if (string.IsNullOrWhiteSpace(href)) continue;
 				if (!href.Contains("/book/show")) continue;
 
-				Uri absoluteUrl = new(baseUri, href);
-
-				string normalizedUrl = absoluteUrl.GetLeftPart(UriPartial.Path);
+				string normalizedUrl = NormalizeUrl(href);
 
 				if (!seen.Add(normalizedUrl)) continue;
 
@@ -220,8 +207,6 @@ namespace BookNotifier.Integrations.GoodReads
 
 			HashSet<string> seen = [];
 
-			Uri baseUri = new("https://www.goodreads.com");
-
 			IEnumerable<HtmlElement> rows = doc.All
 				.Where(static element =>
 					element.TagName.Equals("tr", StringComparison.OrdinalIgnoreCase))
@@ -249,10 +234,7 @@ namespace BookNotifier.Integrations.GoodReads
 					continue;
 				}
 
-				Uri bookUrl = new(baseUri, href);
-
-				string normalizedUrl =
-					bookUrl.GetLeftPart(UriPartial.Path);
+				string normalizedUrl = NormalizeUrl(href);
 
 				if (!seen.Add(normalizedUrl))
 				{
@@ -313,66 +295,45 @@ namespace BookNotifier.Integrations.GoodReads
 
 		private async Task<string> GetStringWithRetryAsync(string url, int maxRetries = 5, CancellationToken cancellationToken = default)
 		{
-			for (int attempt = 1; ; attempt++)
-			{
-				try
-				{
-					using HttpResponseMessage response =
-						await _client.GetAsync(url, cancellationToken);
+			(string content, HttpStatusCode statusCode) = await HttpRetry.GetWithRetryAsync(_client, url, maxRetries, cancellationToken);
 
-					if (response.StatusCode is HttpStatusCode.ServiceUnavailable or (HttpStatusCode)429)
-					{
-						if (attempt >= maxRetries)
-						{
-							throw new HttpRequestException(
-								$"Request failed with status code {(int)response.StatusCode} after {maxRetries} attempts.");
-						}
+			if (!HttpRetry.IsSuccess(statusCode))
+				throw new HttpRequestException($"Request failed with status code {(int)statusCode} for {url}");
 
-						TimeSpan delay =
-							TimeSpan.FromSeconds(Math.Pow(2, attempt));
-
-						LogError($"Retry {attempt}/{maxRetries} for {url} due to {(int)response.StatusCode}. Waiting {delay.TotalSeconds}s");
-
-						await Task.Delay(delay, cancellationToken);
-
-						continue;
-					}
-
-					response.EnsureSuccessStatusCode();
-
-					return await response.Content.ReadAsStringAsync(cancellationToken);
-				}
-				catch (HttpRequestException) when (attempt < maxRetries)
-				{
-					TimeSpan delay =
-						TimeSpan.FromSeconds(Math.Pow(2, attempt));
-
-					await Task.Delay(delay, cancellationToken);
-				}
-				catch (TaskCanceledException) when (attempt < maxRetries)
-				{
-					TimeSpan delay =
-						TimeSpan.FromSeconds(Math.Pow(2, attempt));
-
-					await Task.Delay(delay, cancellationToken);
-				}
-			}
+			return content;
 		}
 
 		public async Task RunAsync(IReadOnlyList<GoodReadsBookDetails> readingListData, Dictionary<string, List<GoodReadsBook>> authorBooks)
 		{
-			HashSet<string> knownBooks = await FileStoreService.LoadGoodReadsKnownBooksAsync();
+			List<GoodReadsKnownBook> knownBookRecords = await FileStoreService.LoadGoodReadsKnownBookRecordsAsync();
+			HashSet<string> knownBooks = knownBookRecords.Select(FileStoreService.CreateGoodReadsKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 			bool isFirstRun = knownBooks.Count == 0;
 
 			List<GoodReadsKnownBook> updatedKnownBooks = [];
+			HashSet<string> processedAuthors = new(StringComparer.OrdinalIgnoreCase);
 
 			foreach (GoodReadsBookDetails details in readingListData)
 			{
 				GoodReadsAuthor author = details.Author;
+				processedAuthors.Add(author.Name);
 
 				if (!authorBooks.TryGetValue(author.Name, out List<GoodReadsBook>? books))
 				{
+					continue;
+				}
+
+				List<GoodReadsKnownBook> existingAuthorBooks = knownBookRecords
+					.Where(kb => kb.AuthorName == author.Name && kb.SeriesName is null)
+					.ToList();
+
+				// An author fetch returning 0 books is more likely a failed/empty request than the
+				// author actually having nothing published — keep the cached entries instead of
+				// silently dropping them.
+				if (books.Count == 0 && existingAuthorBooks.Count > 0)
+				{
+					LogError($"[goodreads] Fetched 0 books for {author.Name} but {existingAuthorBooks.Count} are cached, keeping cache.");
+					updatedKnownBooks.AddRange(existingAuthorBooks);
 					continue;
 				}
 
@@ -397,6 +358,19 @@ namespace BookNotifier.Integrations.GoodReads
 						SeriesPosition = seriesBook.Position
 					})
 					.ToList() ?? [];
+
+				if (details.Series is not null && seriesKnownBooks.Count == 0)
+				{
+					List<GoodReadsKnownBook> existingSeriesBooks = knownBookRecords
+						.Where(kb => kb.SeriesName == details.Series.Name)
+						.ToList();
+
+					if (existingSeriesBooks.Count > 0)
+					{
+						LogError($"[goodreads] Series '{details.Series.Name}' returned 0 books but {existingSeriesBooks.Count} are cached, keeping cache.");
+						seriesKnownBooks = existingSeriesBooks;
+					}
+				}
 
 				bool isNewAuthor = authorKnownBooks.Concat(seriesKnownBooks).All(kb => !knownBooks.Contains(FileStoreService.CreateGoodReadsKey(kb)));
 
@@ -462,7 +436,7 @@ namespace BookNotifier.Integrations.GoodReads
 										knownSeriesBook.Title,
 										knownSeriesBook.Url,
 										details.Series.Name,
-										knownSeriesBook.SeriesPosition.ToString() ?? ""
+										knownSeriesBook.SeriesPosition?.ToString() ?? ""
 									);
 
 								knownBooks.Add(key);
@@ -472,6 +446,14 @@ namespace BookNotifier.Integrations.GoodReads
 						}
 					}
 				}
+			}
+
+			// An author missing entirely from this run's reading list is more likely a failed/empty
+			// request than every one of their books being un-shelved — keep the cached entries.
+			foreach (GoodReadsKnownBook missing in knownBookRecords.Where(kb => !processedAuthors.Contains(kb.AuthorName)))
+			{
+				LogError($"[goodreads] Author '{missing.AuthorName}' missing from this run's reading list, keeping cached entry.");
+				updatedKnownBooks.Add(missing);
 			}
 
 			await FileStoreService.SaveGoodReadsKnownBooksAsync(updatedKnownBooks);

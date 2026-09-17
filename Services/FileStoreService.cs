@@ -47,9 +47,12 @@ namespace BookNotifier.Services
 			await File.WriteAllTextAsync(FilePath(filename), JsonSerializer.Serialize(data, JsonOptions));
 		}
 
+		public static Task<List<GoodReadsKnownBook>> LoadGoodReadsKnownBookRecordsAsync() =>
+			ReadAsync<List<GoodReadsKnownBook>>("goodreads.json", []);
+
 		public static async Task<HashSet<string>> LoadGoodReadsKnownBooksAsync()
 		{
-			List<GoodReadsKnownBook> books = await ReadAsync<List<GoodReadsKnownBook>>("goodreads.json", []);
+			List<GoodReadsKnownBook> books = await LoadGoodReadsKnownBookRecordsAsync();
 
 			return books
 				.Select(CreateGoodReadsKey)

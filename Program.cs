@@ -24,6 +24,8 @@ namespace BookNotifier
 			Thread.CurrentThread.CurrentCulture = ci;
 			Thread.CurrentThread.CurrentUICulture = ci;
 
+			Directory.CreateDirectory(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data"));
+
 			AppDomain.CurrentDomain.UnhandledException += (_, f) => LogError(f.ExceptionObject.ToString() ?? "Unhandled exception");
 			TaskScheduler.UnobservedTaskException += (_, ef) => LogError(ef.Exception.Message);
 
@@ -33,8 +35,6 @@ namespace BookNotifier
 			Log($"Running Once: {RunOnce}");
 			Log($"Ignoring Discord Post: {IgnorePost}");
 			Log($"Env Vars Found: {Env.Variables.Count}");
-			
-			Directory.CreateDirectory(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data"));
 
 			string[] notifiers = (Environment.GetEnvironmentVariable("NOTIFIER")
 				?? throw new InvalidOperationException("Missing NOTIFIER environment variable."))
@@ -126,7 +126,7 @@ namespace BookNotifier
 
 			Dictionary<string, List<GoodReadsBook>> authorBooks = [];
 
-			foreach (GoodReadsAuthor author in readingListData.Select(x => x.Author).DistinctBy(x => x.Id))
+			foreach (GoodReadsAuthor author in readingListData.Select(x => x.Author).DistinctBy(x => x.Name))
 			{
 				List<GoodReadsBook> books = await sdk.GetAuthorsBooks(author.Url);
 				authorBooks[author.Name] = books;
@@ -144,12 +144,13 @@ namespace BookNotifier
 			await api.RunCheck();
 		}
 
-		private static Task RunLiteroticaAsync()
+		private static async Task RunLiteroticaAsync()
 		{
 			string username = Environment.GetEnvironmentVariable("LITEROTICA_USERNAME") ?? throw new InvalidOperationException("Missing LITEROTICA_USERNAME environment variable.");
 			string password = Environment.GetEnvironmentVariable("LITEROTICA_PASSWORD") ?? throw new InvalidOperationException("Missing LITEROTICA_PASSWORD environment variable.");
 
-			return new LiteroticaClient(username, password).RunAsync();
+			using LiteroticaClient client = new(username, password);
+			await client.RunAsync();
 		}
 
 		private static async Task RunRoyalRoadAsync()

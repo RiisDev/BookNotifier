@@ -226,7 +226,7 @@ namespace BookNotifier.Services
 				Encoding.UTF8,
 				"application/json");
 
-			HttpResponseMessage response = await Client.PostAsync(webhook, content);
+			using HttpResponseMessage response = await Client.PostAsync(webhook, content);
 
 			Log(response.IsSuccessStatusCode
 				? $"[notification] Sent: {payload.Event} | {payload.Title}"

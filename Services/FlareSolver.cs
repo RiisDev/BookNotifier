@@ -1,4 +1,5 @@
 ﻿using BookNotifier.Integrations.ScribbleHub;
+using BookNotifier.Utilities;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -13,18 +14,7 @@ namespace BookNotifier.Services
 
 		private readonly string _flareSolver = Environment.GetEnvironmentVariable("FLARESOLVER_URL") ?? "";
 
-		private readonly HttpClient _flareSolverClient = new(new HttpClientHandler
-		{
-			AllowAutoRedirect = true,
-			AutomaticDecompression = DecompressionMethods.All,
-			UseCookies = true
-		})
-		{
-			DefaultRequestHeaders =
-			{
-				{ "User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" }
-			}
-		};
+		private readonly HttpClient _flareSolverClient = ScraperHttpClient.Create();
 
 		public async Task<HttpResponseMessage> CfCookiePostRequest(string url, string cfClearance, HttpContent? postData = null)
 		{
@@ -35,9 +25,9 @@ namespace BookNotifier.Services
 			return await _flareSolverClient.SendAsync(request);
 		}
 
-		private async Task SendSessionCommandAsync(string command, string sessionId)
+		private async Task<bool> SendSessionCommandAsync(string command, string sessionId)
 		{
-			if (string.IsNullOrEmpty(_flareSolver)) return;
+			if (string.IsNullOrEmpty(_flareSolver)) return true;
 
 			using StringContent body = new(
 				JsonSerializer.Serialize(
@@ -57,7 +47,10 @@ namespace BookNotifier.Services
 			if (stringData.Contains("\"error\""))
 			{
 				Log($"Failed to run {command}: {GetErrorMessage(stringData)}");
+				return false;
 			}
+
+			return true;
 		}
 		
 		private static readonly IReadOnlyDictionary<string, (string ErrorMessage, int RetryDelay)> CustomResolvers = new Dictionary<string, (string, int)>
@@ -171,7 +164,31 @@ namespace BookNotifier.Services
 		}
 
 		public Task InitiateSession(string sessionId) => SendSessionCommandAsync("sessions.create", sessionId);
-		public Task DestroySessionAsync(string sessionId) => SendSessionCommandAsync("sessions.destroy", sessionId);
+
+		// A failed destroy leaks that session's browser instance on the FlareSolver server
+		// forever (each run uses a fresh random session id, so there's no later chance to
+		// clean it up) — retry a few times and make a permanent failure loud.
+		public async Task DestroySessionAsync(string sessionId)
+		{
+			const int maxAttempts = 3;
+
+			for (int attempt = 1; attempt <= maxAttempts; attempt++)
+			{
+				try
+				{
+					if (await SendSessionCommandAsync("sessions.destroy", sessionId)) return;
+				}
+				catch (Exception ex)
+				{
+					Log($"[flaresolver] Destroy attempt {attempt}/{maxAttempts} for session {sessionId} threw: {ex.Message}");
+				}
+
+				if (attempt < maxAttempts)
+					await Task.Delay(TimeSpan.FromSeconds(2 * attempt));
+			}
+
+			LogError($"[flaresolver] Failed to destroy session {sessionId} after {maxAttempts} attempts — it may remain open on the FlareSolver server.");
+		}
 
 		public async Task<(string, int, string)> PostSolver(string url, string sessionId, IEnumerable<KeyValuePair<string, string>>? postData = null, [CallerMemberName] string caller = "")
 		{

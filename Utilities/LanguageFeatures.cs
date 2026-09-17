@@ -1,4 +1,6 @@
-﻿namespace BookNotifier.Utilities
+﻿using System.Text;
+
+namespace BookNotifier.Utilities
 {
 	public static class LanguageFeatures
 	{
@@ -13,5 +15,7 @@
 			result = default;
 			return false;
 		}
+
+		public static string ToBase64(this string input) => Convert.ToBase64String(Encoding.UTF8.GetBytes(input));
 	}
 }

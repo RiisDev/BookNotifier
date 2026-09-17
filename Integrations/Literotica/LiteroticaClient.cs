@@ -10,7 +10,7 @@ using Activity = LiteroticaApi.AuthClientData.DataObjects.Activity;
 
 namespace BookNotifier.Integrations.Literotica
 {
-	internal class LiteroticaClient
+	internal class LiteroticaClient : IDisposable
 	{
 		public static string ComputeMd5Hash(string input)
 		{
@@ -35,6 +35,12 @@ namespace BookNotifier.Integrations.Literotica
 				?.InformationalVersion;
 
 			Log($"[literotica] LiteroticaSdk Version: {ComputeMd5Hash(versionData ?? "")}");
+		}
+
+		public void Dispose()
+		{
+			GC.SuppressFinalize(this);
+			(_authClient as IDisposable)?.Dispose();
 		}
 
 		// Called once per cycle by RunLoopAsync in Program.cs
@@ -104,7 +110,7 @@ namespace BookNotifier.Integrations.Literotica
 
 				await NotificationService.SendNewLitStoryAsync(author.Username,
 					storyActivity.What.Story.Title,
-					$"https://wwww.literotica.com/s/{(storyActivity.What.Story.Id is null ? storyActivity.What.Story.Url : storyActivity.What.Story.Id)}");
+					$"https://www.literotica.com/s/{(storyActivity.What.Story.Id is null ? storyActivity.What.Story.Url : storyActivity.What.Story.Id)}");
 			}
 
 			foreach (ActivityData followedActivity in followedActivities)

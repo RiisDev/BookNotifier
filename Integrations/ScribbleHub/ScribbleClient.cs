@@ -23,6 +23,18 @@ namespace BookNotifier.Integrations.ScribbleHub
 				Log("Fetching new scribble data...");
 				List<ScribbleReadingListStory> readingData = await GetReadingList(currentBooks);
 				Log($"Found: {readingData.Count} new books");
+
+				// A story missing from this fetch is more likely a failed/empty request than the
+				// story actually disappearing — keep the cached entry instead of silently dropping it.
+				HashSet<string> fetchedStoryIds = readingData.Select(static s => s.Id).ToHashSet();
+
+				foreach (ScribbleSaveBookRoot missing in currentBooks.Where(cb => !fetchedStoryIds.Contains(cb.Id)))
+				{
+					LogError($"[scribblehub] '{missing.Name}' missing from this fetch, keeping cached entry.");
+					readingData.Add(new ScribbleReadingListStory(missing.Name, missing.Link, missing.Id,
+						missing.Chapters.Select(static c => new ScribbleChapter(c.Title, c.Link, c.Id)).ToList()));
+				}
+
 				await FileStoreService.SaveScribbleHubAsync(readingData);
 
 				foreach (ScribbleReadingListStory story in readingData)
@@ -36,10 +48,16 @@ namespace BookNotifier.Integrations.ScribbleHub
 						continue;
 					}
 
-					ScribbleChapter latestCurrentChapter = story.Chapters[^1];
-					ScribbleSaveChapter latestCachedChapter = cachedStory.Chapters[^1];
+					ScribbleChapter? latestCurrentChapter = story.Chapters.Count > 0 ? story.Chapters[^1] : null;
+					ScribbleSaveChapter? latestCachedChapter = cachedStory.Chapters.Count > 0 ? cachedStory.Chapters[^1] : null;
 
-					if (latestCurrentChapter.Id == latestCachedChapter.Id) continue;
+					if (latestCurrentChapter is null)
+					{
+						LogError($"[scribblehub] No chapters parsed for {story.Name}, skipping chapter check.");
+						continue;
+					}
+
+					if (latestCachedChapter is not null && latestCurrentChapter.Id == latestCachedChapter.Id) continue;
 
 					Log($"[scribblehub] New chapter: {story.Name} -> {latestCurrentChapter.Title}");
 					await NotificationService.SendNewScribbleChapterAsync(story.Name, story.Link, latestCurrentChapter.Title, latestCurrentChapter.Link);

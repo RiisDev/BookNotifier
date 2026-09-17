@@ -7,7 +7,7 @@ namespace BookNotifier.Utilities
 	public static class Logging
 	{
 		private static readonly Lock LogLock = new();
-		private static string LogDirectory => Path.Combine(AppContext.BaseDirectory, "data", "log.txt");
+		private static string LogFilePath => Path.Combine(AppContext.BaseDirectory, "data", "log.txt");
 
 		public static void Log(string message, [CallerMemberName] string caller = "", [CallerFilePath] string filePath = "")
 		{
@@ -19,7 +19,7 @@ namespace BookNotifier.Utilities
 					string data = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] [{fileName}.{caller}] {message}";
 					Console.WriteLine(data);
 					Debug.WriteLine(data);
-					File.AppendAllText(LogDirectory, data + "\n");
+					File.AppendAllText(LogFilePath, data + "\n");
 				}
 				catch{/**/}
 			}

@@ -1,9 +1,9 @@
 ﻿using System.Net;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using BookNotifier.Services;
+using BookNotifier.Utilities;
 
 namespace BookNotifier.Integrations.RoyalRoad
 {
@@ -17,23 +17,7 @@ namespace BookNotifier.Integrations.RoyalRoad
 			[property: JsonPropertyName("url")] string Url
 		);
 
-		private readonly HttpClient _client = new(new HttpClientHandler
-		{
-			AllowAutoRedirect = true,
-			AutomaticDecompression = DecompressionMethods.All,
-			CookieContainer = new CookieContainer(),
-			UseCookies = true
-		})
-		{
-			DefaultRequestHeaders =
-			{
-				{
-					"User-Agent",
-					"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-				}
-			},
-			Timeout = TimeSpan.FromSeconds(15)
-		};
+		private readonly HttpClient _client = ScraperHttpClient.Create(timeout: TimeSpan.FromSeconds(15));
 
 		public void Dispose()
 		{
@@ -111,6 +95,16 @@ namespace BookNotifier.Integrations.RoyalRoad
 				});
 			}
 
+			// A book missing from this fetch is more likely a failed/empty request than a real
+			// unfavourite — keep the cached entry instead of silently dropping it.
+			HashSet<string> fetchedUrls = currentBooks.Select(static b => NormalizeUrl(b.Url)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+			foreach (RoyalRoadKnownFiction missing in knownFictions.Where(f => !fetchedUrls.Contains(f.Url)))
+			{
+				LogError($"[royalroad] '{missing.Title}' missing from this fetch, keeping cached entry.");
+				updatedFictions.Add(missing);
+			}
+
 			await FileStoreService.SaveRoyalRoadAsync(updatedFictions);
 		}
 		
@@ -135,14 +129,12 @@ namespace BookNotifier.Integrations.RoyalRoad
 		{
 			List<string> favourites = [];
 
-			using HttpRequestMessage request = new(HttpMethod.Get, $"https://www.royalroad.com/profile/{userId}/favorites?page={page}");
-			using HttpResponseMessage response = await _client.SendAsync(request);
+			(string responseContent, HttpStatusCode statusCode) = await HttpRetry.GetWithRetryAsync(
+				_client, $"https://www.royalroad.com/profile/{userId}/favorites?page={page}");
 
-			string responseContent = await response.Content.ReadAsStringAsync();
-
-			if (!response.IsSuccessStatusCode)
+			if (!HttpRetry.IsSuccess(statusCode))
 			{
-				LogError($"[RoyalRoad] Failed to get favourites ({response.StatusCode}): {Convert.ToBase64String(Encoding.UTF8.GetBytes(responseContent))}");
+				LogError($"[RoyalRoad] Failed to get favourites ({statusCode}): {responseContent.ToBase64()}");
 				return favourites;
 			}
 
@@ -157,10 +149,11 @@ namespace BookNotifier.Integrations.RoyalRoad
 
 			HashSet<string> otherPages = paginationMatches
 				.Select(static m => m.Value)
-				.Skip(1)
+				.Select(pageUrl => pageUrl[(pageUrl.IndexOf('=') + 1)..])
+				.Where(pageNumber => pageNumber != "1")
 				.ToHashSet();
 
-			foreach (string pageNumber in otherPages.Select(pageUrl => pageUrl[(pageUrl.IndexOf('=') + 1)..]))
+			foreach (string pageNumber in otherPages)
 			{
 				List<string> pageResults = await GetFavouriteUrlsAsync(int.Parse(pageNumber));
 
@@ -172,14 +165,11 @@ namespace BookNotifier.Integrations.RoyalRoad
 
 		private async Task<RoyalRoadBook?> GetBookAsync(string url)
 		{
-			using HttpRequestMessage request = new(HttpMethod.Get, url);
-			using HttpResponseMessage response = await _client.SendAsync(request);
+			(string responseContent, HttpStatusCode statusCode) = await HttpRetry.GetWithRetryAsync(_client, url);
 
-			string responseContent = await response.Content.ReadAsStringAsync();
-
-			if (!response.IsSuccessStatusCode)
+			if (!HttpRetry.IsSuccess(statusCode))
 			{
-				LogError($"[RoyalRoad] Failed to get book ({response.StatusCode}): {url}");
+				LogError($"[RoyalRoad] Failed to get book ({statusCode}): {url}");
 				return null;
 			}
 

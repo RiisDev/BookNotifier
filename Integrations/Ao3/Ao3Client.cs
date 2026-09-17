@@ -1,6 +1,6 @@
-﻿using System.Text;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using BookNotifier.Services;
+using BookNotifier.Utilities;
 
 namespace BookNotifier.Integrations.Ao3
 {
@@ -19,8 +19,24 @@ namespace BookNotifier.Integrations.Ao3
 
 				List<Ao3ExistingWorkEntries> existing = await FileStoreService.LoadAo3Async();
 				bool firstRun = existing.Count == 0;
-				
+
 				List<Ao3WorkEntry> bookmarks = await GetBookmarkedBooksAsync();
+
+				// A work missing from this fetch is more likely a failed/empty request than a real
+				// unbookmark — keep the cached entry instead of silently dropping it.
+				HashSet<string> fetchedWorkIds = bookmarks.Select(static b => b.WorkId).ToHashSet();
+
+				foreach (Ao3ExistingWorkEntries missing in existing.Where(e => !fetchedWorkIds.Contains(e.WorkId)))
+				{
+					LogError($"[ao3] '{missing.Title}' missing from this fetch, keeping cached entry.");
+					bookmarks.Add(new Ao3WorkEntry(
+						missing.WorkId,
+						missing.Title,
+						missing.Url,
+						missing.Author,
+						missing.Chapters.Select(static c => new Ao3Chapter(c.Title, c.Url)).ToList()));
+				}
+
 				await FileStoreService.SaveAo3Async(bookmarks);
 
 				if (firstRun) return;
@@ -135,7 +151,7 @@ namespace BookNotifier.Integrations.Ao3
 
 			if (!titleMatch.Success)
 			{
-				LogError($"Failed to get title match on {Convert.ToBase64String(Encoding.UTF8.GetBytes(responseContent))}");
+				LogError($"Failed to get title match on {responseContent.ToBase64()}");
 				return null;
 			}
 
@@ -145,7 +161,7 @@ namespace BookNotifier.Integrations.Ao3
 
 			if (!authorMatch.Success)
 			{
-				LogError($"Failed to get author match on {Convert.ToBase64String(Encoding.UTF8.GetBytes(responseContent))}");
+				LogError($"Failed to get author match on {responseContent.ToBase64()}");
 				author = "Anonymous";
 			}
 			else author = authorMatch.Groups[1].Value.Trim();
