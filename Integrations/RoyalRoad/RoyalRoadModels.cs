@@ -4,6 +4,7 @@
 	{
 		public required string Title { get; init; }
 		public required string Url { get; init; }
+		public DateTime? ReleasedAt { get; init; }
 	}
 
 	public record RoyalRoadKnownFiction
@@ -11,5 +12,7 @@
 		public required string Title { get; init; }
 		public required string Url { get; init; }
 		public required List<RoyalRoadKnownChapter> Chapters { get; init; }
+		public string? CoverUrl { get; init; }
+		public string Status { get; init; } = "unknown";
 	}
 }

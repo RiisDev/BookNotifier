@@ -1,4 +1,6 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Diagnostics;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using BookNotifier.Services;
 using BookNotifier.Utilities;
 
@@ -34,7 +36,8 @@ namespace BookNotifier.Integrations.Ao3
 						missing.Title,
 						missing.Url,
 						missing.Author,
-						missing.Chapters.Select(static c => new Ao3Chapter(c.Title, c.Url)).ToList()));
+						missing.Chapters.Select(static c => new Ao3Chapter(c.Title, c.Url, c.ReleasedAt)).ToList(),
+						missing.Status));
 				}
 
 				await FileStoreService.SaveAo3Async(bookmarks);
@@ -81,17 +84,21 @@ namespace BookNotifier.Integrations.Ao3
 			List<Ao3WorkEntry> entries = [];
 
 			List<string> bookmarks = await GetBookmarkedUrlsAsync();
-			
-			Log($"Found {bookmarks.Count} bookmarks, fetching metadata..."); 
 
-			TimeSpan estimated = TimeSpan.FromSeconds(bookmarks.Count * 4);
-			Log($"Estimated: {estimated:mm\\:ss}");
+			Log($"Found {bookmarks.Count} bookmarks, fetching metadata...");
 
-			foreach (string bookmark in bookmarks)
+			Stopwatch stopwatch = Stopwatch.StartNew();
+
+			for (int i = 0; i < bookmarks.Count; i++)
 			{
-				Ao3WorkEntry? bookEntry = await GetEntryDetailsAsync(bookmark);
-				if (bookEntry is null) continue;
-				entries.Add(bookEntry);
+				Ao3WorkEntry? bookEntry = await GetEntryDetailsAsync(bookmarks[i]);
+				if (bookEntry is not null) entries.Add(bookEntry);
+
+				if (i == 0)
+				{
+					TimeSpan estimated = stopwatch.Elapsed * bookmarks.Count;
+					Log($"First request took {stopwatch.Elapsed.TotalSeconds:F1}s, estimated total: {estimated:mm\\:ss}");
+				}
 			}
 
 			return entries;
@@ -131,14 +138,6 @@ namespace BookNotifier.Integrations.Ao3
 
 		private async Task<Ao3WorkEntry?> GetEntryDetailsAsync(string url)
 		{
-			(string responseContent, int statusCode, _) = await Program.FlareClient.GetSolver($"{url}?view_adult=true", _sessionId);
-
-			if (statusCode != 200)
-			{
-				LogError($"Failed to book data ({statusCode}) for {url}");
-				return null;
-			}
-
 			if (!url.Contains('/'))
 			{
 				LogError($"{url} is somehow missing '/'");
@@ -147,7 +146,15 @@ namespace BookNotifier.Integrations.Ao3
 
 			string workId = url[(url.LastIndexOf('/') + 1)..];
 
-			Match titleMatch = GetTitleRegex().Match(responseContent);
+			(string responseContent, int statusCode, _) = await Program.FlareClient.GetSolver($"{url}/navigate?view_adult=true", _sessionId);
+
+			if (statusCode != 200)
+			{
+				LogError($"Failed to get navigate page ({statusCode}) for {url}");
+				return null;
+			}
+
+			Match titleMatch = GetTitleAndAuthorRegex().Match(responseContent);
 
 			if (!titleMatch.Success)
 			{
@@ -155,16 +162,7 @@ namespace BookNotifier.Integrations.Ao3
 				return null;
 			}
 
-			Match authorMatch = GetAuthorRegex().Match(responseContent);
-
-			string author;
-
-			if (!authorMatch.Success)
-			{
-				LogError($"Failed to get author match on {responseContent.ToBase64()}");
-				author = "Anonymous";
-			}
-			else author = authorMatch.Groups[1].Value.Trim();
+			string author = titleMatch.Groups[2].Success ? titleMatch.Groups[2].Value.Trim() : "Anonymous";
 
 			MatchCollection chaptersMatch = GetChaptersRegex().Matches(responseContent);
 
@@ -172,16 +170,33 @@ namespace BookNotifier.Integrations.Ao3
 
 			foreach (Match match in chaptersMatch)
 			{
-				chapters.Add(new Ao3Chapter(match.Groups[2].Value.Trim(), $"https://archiveofourown.org/{match.Groups[1].Value.Trim()}"));
+				string chapterUrl = $"https://archiveofourown.org{match.Groups[1].Value.Trim()}";
+				string chapterTitle = match.Groups[2].Value.Trim();
+				DateTime? releasedAt = DateTime.TryParse(match.Groups[3].Value.Trim(), CultureInfo.InvariantCulture,
+					DateTimeStyles.None, out DateTime parsed) ? parsed : null;
+
+				chapters.Add(new Ao3Chapter(chapterTitle, chapterUrl, releasedAt));
 			}
+
+			string status = DetermineStatus(chapters.Select(c => c.ReleasedAt).ToList());
 
 			return new Ao3WorkEntry(
 				WorkId: workId,
 				Title: titleMatch.Groups[1].Value.Trim(),
 				Url: url,
 				Author: author,
-				Chapters: chapters
+				Chapters: chapters,
+				Status: status
 			);
+		}
+
+		// AO3 has no explicit ongoing/hiatus flag on the navigate page — approximate it from recency:
+		// nothing posted in 2 weeks is treated as on hiatus.
+		private static string DetermineStatus(List<DateTime?> releaseDates)
+		{
+			DateTime? latest = releaseDates.Where(d => d.HasValue).Max();
+			if (latest is null) return "unknown";
+			return DateTime.UtcNow - latest.Value <= TimeSpan.FromDays(14) ? "ongoing" : "hiatus";
 		}
 
 		[GeneratedRegex("href=\"(\\/works\\/\\d+)\">", RegexOptions.Compiled)]
@@ -190,13 +205,12 @@ namespace BookNotifier.Integrations.Ao3
 		[GeneratedRegex("href=\"[^\"]*page=(\\d+)\">(\\d+)</a>(?=.*?<li><span class=\"gap\")", RegexOptions.Compiled)]
 		private partial Regex GetPageCount();
 
-		[GeneratedRegex("<h2\\s+class=\"title\\s+heading\">\\s*(.*?)\\s*</h2>", RegexOptions.Compiled)]
-		private partial Regex GetTitleRegex();
+		// Matches: <a href="/works/123">Title</a> by <a rel="author" href="...">Author</a> — author group is
+		// optional since anonymous/orphaned works omit the "by <a rel=author>" part entirely.
+		[GeneratedRegex("<a\\s+href=\"\\/works\\/\\d+\">\\s*(.*?)\\s*<\\/a>(?:\\s*by\\s*<a\\s+rel=\"author\"[^>]*>\\s*(.*?)\\s*<\\/a>)?", RegexOptions.Compiled)]
+		private partial Regex GetTitleAndAuthorRegex();
 
-		[GeneratedRegex("<a\\s+rel=\"author\"[^>]*>(.*?)</a>", RegexOptions.Compiled)]
-		private partial Regex GetAuthorRegex();
-
-		[GeneratedRegex("<option(?:\\s+selected=\"selected\")?\\s+value=\"(\\d+)\">(.*?)</option>", RegexOptions.Compiled)]
+		[GeneratedRegex("<li><a\\s+href=\"(\\/works\\/\\d+\\/chapters\\/\\d+)\">\\s*(?:\\d+\\.\\s*)?(.*?)\\s*<\\/a>\\s*<span class=\"datetime\">\\(([\\d-]+)\\)<\\/span>", RegexOptions.Compiled)]
 		private partial Regex GetChaptersRegex();
 	}
 }

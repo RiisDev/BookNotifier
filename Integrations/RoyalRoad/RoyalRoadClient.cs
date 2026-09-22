@@ -9,12 +9,13 @@ namespace BookNotifier.Integrations.RoyalRoad
 {
 	internal partial class RoyalRoadClient(int userId) : IDisposable
 	{
-		private record RoyalRoadBook(string Title, string Url, List<RoyalRoadChapter> Chapters);
+		private record RoyalRoadBook(string Title, string Url, List<RoyalRoadChapter> Chapters, string? CoverUrl, string Status);
 
 		private record RoyalRoadChapter(
 			[property: JsonPropertyName("title")] string Title,
 			[property: JsonPropertyName("isUnlocked")] bool? IsUnlocked,
-			[property: JsonPropertyName("url")] string Url
+			[property: JsonPropertyName("url")] string Url,
+			[property: JsonPropertyName("date")] DateTime? ReleaseDate
 		);
 
 		private readonly HttpClient _client = ScraperHttpClient.Create(timeout: TimeSpan.FromSeconds(15));
@@ -50,7 +51,8 @@ namespace BookNotifier.Integrations.RoyalRoad
 					.Select(static c => new RoyalRoadKnownChapter
 					{
 						Title = c.Title.Trim(),
-						Url = $"https://www.royalroad.com{c.Url}"
+						Url = $"https://www.royalroad.com{c.Url}",
+						ReleasedAt = c.ReleaseDate
 					})
 					.ToList();
 
@@ -67,7 +69,9 @@ namespace BookNotifier.Integrations.RoyalRoad
 					{
 						Title = book.Title.Trim(),
 						Url = normalizedUrl,
-						Chapters = currentChapters
+						Chapters = currentChapters,
+						CoverUrl = book.CoverUrl,
+						Status = book.Status
 					});
 
 					continue;
@@ -91,7 +95,9 @@ namespace BookNotifier.Integrations.RoyalRoad
 				updatedFictions.Add(knownFiction with
 				{
 					Title = book.Title.Trim(),
-					Chapters = currentChapters
+					Chapters = currentChapters,
+					CoverUrl = book.CoverUrl ?? knownFiction.CoverUrl,
+					Status = book.Status
 				});
 			}
 
@@ -199,8 +205,30 @@ namespace BookNotifier.Integrations.RoyalRoad
 
 			string title = titleMatch.Groups[1].Value.Trim();
 
-			return new RoyalRoadBook(title, url, chapters);
+			string? coverUrl = BookCoverRegex().Match(responseContent) is { Success: true } coverMatch
+				? coverMatch.Groups[1].Value
+				: null;
+
+			string status = BookStatusRegex().Matches(responseContent)
+				.Select(static m => m.Groups[1].Value.Trim())
+				.FirstOrDefault(static s => KnownStatuses.Contains(s))
+				?.ToLowerInvariant() ?? "unknown";
+
+			// A "stub" (content pulled for exclusivity elsewhere) can still be actively releasing new
+			// chapters on RoyalRoad — flag that distinctly from a stub that's gone quiet.
+			if (status == "stub" && chapters.Max(static c => c.ReleaseDate) is { } latest &&
+			    DateTime.UtcNow - latest <= TimeSpan.FromDays(21))
+			{
+				status = "stub/ongoing";
+			}
+
+			return new RoyalRoadBook(title, url, chapters, coverUrl, status);
 		}
+
+		private static readonly HashSet<string> KnownStatuses = new(StringComparer.OrdinalIgnoreCase)
+		{
+			"ONGOING", "HIATUS", "STALLED", "COMPLETED", "DROPPED", "STUB"
+		};
 		
 		private static string NormalizeUrl(string url)
 		{
@@ -216,6 +244,14 @@ namespace BookNotifier.Integrations.RoyalRoad
 
 		[GeneratedRegex("""<meta\s+name="twitter:title"\s+content="([^"]+)""", RegexOptions.Compiled)]
 		private partial Regex BookTitleRegex();
+
+		[GeneratedRegex("""<img\s+class="thumbnail inline-block"\s+data-type="cover"[^>]*\ssrc="([^"]+)""", RegexOptions.Compiled)]
+		private partial Regex BookCoverRegex();
+
+		// Some status spans wrap the text in a further <i> info-icon tag (e.g. "STUB"), so this only
+		// anchors on the leading word rather than requiring an immediate closing </span>.
+		[GeneratedRegex("""<span class="label label-default label-sm bg-blue-hoki"[^>]*>\s*([A-Za-z]+)""", RegexOptions.Compiled)]
+		private partial Regex BookStatusRegex();
 
 		[GeneratedRegex("""\/profile\/\d+\/favorites\?page=\d+""", RegexOptions.Compiled)]
 		private partial Regex FavouritePageRegex();

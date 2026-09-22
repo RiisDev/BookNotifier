@@ -12,6 +12,10 @@ namespace BookNotifier.Integrations.GoodReads
 		public required Guid AuthorId { get; init; }
 
 		public Guid? SeriesId { get; init; }
+
+		public DateTime? PublishedAt { get; init; }
+
+		public string? CoverUrl { get; init; }
 	}
 
 	public sealed record GoodReadsAuthor
@@ -30,6 +34,8 @@ namespace BookNotifier.Integrations.GoodReads
 		public required Uri Url { get; init; }
 
 		public required int Position { get; init; }
+
+		public string? CoverUrl { get; init; }
 	}
 
 	public sealed record GoodReadsSeries
@@ -64,6 +70,12 @@ namespace BookNotifier.Integrations.GoodReads
 		public string? SeriesName { get; init; }
 
 		public int? SeriesPosition { get; init; }
+
+		public DateTime? PublishedAt { get; init; }
+
+		public string? CoverUrl { get; init; }
+
+		public string Status { get; init; } = "unknown";
 	}
 
 	public sealed record GoodReadsNotificationPayload

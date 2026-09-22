@@ -83,19 +83,30 @@ namespace BookNotifier.Services
 					s.Link,
 					s.Id,
 					s.Chapters
-						.Select(c => new ScribbleSaveChapter(c.Title, c.Link, c.Id))
-						.ToList()
+						.Select(c => new ScribbleSaveChapter(c.Title, c.Link, c.Id, c.ReleasedAt))
+						.ToList(),
+					s.CoverUrl,
+					s.Status
 				))
 				.ToList();
 
 			return WriteAsync("scribblehub.json", toSave);
 		}
 
-		public static Task<LiteroticaKnownData> LoadLiteroticaAsync() => ReadAsync("literotica.json", new LiteroticaKnownData { Authors = [], Stories = [] });
+		public static Task<LiteroticaKnownData> LoadLiteroticaAsync() => ReadAsync("literotica.json", new LiteroticaKnownData { Authors = [], Works = [] });
 
-		public static Task SaveLiteroticaAsync(LiteroticaKnownData data) => WriteAsync("literotica.json", data);
+		public static Task SaveLiteroticaAsync(LiteroticaKnownData data)
+		{
+			LiteroticaKnownData sorted = data with
+			{
+				Works = data.Works
+					.OrderBy(static w => w.Author, StringComparer.OrdinalIgnoreCase)
+					.ThenBy(static w => w.Title, StringComparer.OrdinalIgnoreCase)
+					.ToList()
+			};
 
-		public static string CreateLiteroticaStoryKey(string? id, string? title) => $"{id}||{title}";
+			return WriteAsync("literotica.json", sorted);
+		}
 
 		public static Task<List<Ao3ExistingWorkEntries>> LoadAo3Async() => ReadAsync<List<Ao3ExistingWorkEntries>>("ao3.json", []);
 

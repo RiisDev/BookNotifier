@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.ServiceModel.Syndication;
+using System.Text.RegularExpressions;
 using System.Xml;
 using BookNotifier.Services;
 using BookNotifier.Utilities;
@@ -51,7 +53,20 @@ namespace BookNotifier.Integrations.GoodReads
 
 			Log($"[goodreads] Found {bookUrls.Length} book(s) urls...");
 
-			GoodReadsBookDetails[] books = await Task.WhenAll(bookUrls.Select(GetBookDetailsAsync));
+			GoodReadsBookDetails?[] results = await Task.WhenAll(bookUrls.Select(async url =>
+			{
+				try
+				{
+					return await GetBookDetailsAsync(url);
+				}
+				catch (Exception ex)
+				{
+					LogError($"[goodreads] Failed to parse book details for {url}: {ex.Message}");
+					return null;
+				}
+			}));
+
+			GoodReadsBookDetails[] books = results.Where(static b => b is not null).ToArray()!;
 
 			Log($"[goodreads] Grabbed {books.Length} book(s) data...");
 
@@ -112,13 +127,20 @@ namespace BookNotifier.Integrations.GoodReads
 			string title = titleElement?.TextContent.Trim()
 				?? url.Segments.Last();
 
+			HtmlElement? publicationElement = doc.QuerySelector("[data-testid=publicationInfo]");
+			DateTime? publishedAt = ParsePublicationInfo(publicationElement?.TextContent);
+
+			string? coverUrl = doc.QuerySelector("div.BookCover__image img")?.GetAttribute("src");
+
 			GoodReadsBook book = new()
 			{
 				Id = Guid.NewGuid(),
 				Title = title,
 				Url = url,
 				AuthorId = author.Id,
-				SeriesId = series?.Id
+				SeriesId = series?.Id,
+				PublishedAt = publishedAt,
+				CoverUrl = coverUrl
 			};
 
 			GoodReadsBookDetails details = new()
@@ -167,7 +189,8 @@ namespace BookNotifier.Integrations.GoodReads
 
 				if (!seen.Add(normalizedUrl)) continue;
 
-				string title = anchor.Children.First().GetAttribute("alt") ?? "N/A";
+				HtmlElement coverImg = anchor.Children.First();
+				string title = coverImg.GetAttribute("alt") ?? "N/A";
 
 				if (string.IsNullOrWhiteSpace(title)) continue;
 				if (title.Length < 2) continue;
@@ -176,7 +199,8 @@ namespace BookNotifier.Integrations.GoodReads
 				{
 					Title = title,
 					Url = new Uri(normalizedUrl),
-					Position = books.Count + 1
+					Position = books.Count + 1,
+					CoverUrl = coverImg.GetAttribute("src")
 				});
 			}
 
@@ -244,16 +268,18 @@ namespace BookNotifier.Integrations.GoodReads
 				string title =
 					bookAnchor.TextContent.Trim();
 
+				HtmlElement? image = row
+					.GetElementsByTagName("img")
+					.FirstOrDefault();
+
 				if (string.IsNullOrWhiteSpace(title))
 				{
-					HtmlElement? image = row
-						.GetElementsByTagName("img")
-						.FirstOrDefault();
-
 					title =
 						image?.GetAttribute("alt")
 						?? "Unknown";
 				}
+
+				string? coverUrl = image?.GetAttribute("src");
 
 				HtmlElement? authorAnchor = row
 					.GetElementsByTagName("a")
@@ -280,13 +306,25 @@ namespace BookNotifier.Integrations.GoodReads
 					Id = Guid.NewGuid(),
 					Title = title,
 					Url = new Uri(normalizedUrl),
-					AuthorId = author.Id
+					AuthorId = author.Id,
+					CoverUrl = coverUrl
 				};
 
 				books.Add(book);
 			}
 
 			return books;
+		}
+
+		internal static DateTime? ParsePublicationInfo(string? text)
+		{
+			if (string.IsNullOrWhiteSpace(text)) return null;
+
+			string dateText = Regex.Replace(text, "^.*?published\\s+", "", RegexOptions.IgnoreCase).Trim();
+
+			return DateTime.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed)
+				? parsed
+				: null;
 		}
 
 		private async Task<string> GetStringWithRetryAsync(Uri url, int maxRetries = 5,
@@ -344,7 +382,8 @@ namespace BookNotifier.Integrations.GoodReads
 						AuthorName = author.Name,
 						Url = book.Url.ToString(),
 						SeriesName = null,
-						SeriesPosition = null
+						SeriesPosition = null,
+						CoverUrl = book.CoverUrl
 					})
 					.ToList();
 
@@ -355,7 +394,8 @@ namespace BookNotifier.Integrations.GoodReads
 						AuthorName = author.Name,
 						Url = seriesBook.Url.ToString(),
 						SeriesName = details.Series.Name,
-						SeriesPosition = seriesBook.Position
+						SeriesPosition = seriesBook.Position,
+						CoverUrl = seriesBook.CoverUrl
 					})
 					.ToList() ?? [];
 

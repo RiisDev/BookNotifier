@@ -4,6 +4,7 @@ using BookNotifier.Integrations.Literotica;
 using BookNotifier.Integrations.RoyalRoad;
 using BookNotifier.Integrations.ScribbleHub;
 using BookNotifier.Services;
+using BookNotifier.Utilities;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
@@ -25,6 +26,12 @@ namespace BookNotifier
 			Thread.CurrentThread.CurrentUICulture = ci;
 
 			Directory.CreateDirectory(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data"));
+
+			if (args.Contains("--selftest", StringComparer.OrdinalIgnoreCase))
+			{
+				SelfCheck.Run();
+				return;
+			}
 
 			AppDomain.CurrentDomain.UnhandledException += (_, f) => LogError(f.ExceptionObject.ToString() ?? "Unhandled exception");
 			TaskScheduler.UnobservedTaskException += (_, ef) => LogError(ef.Exception.Message);
