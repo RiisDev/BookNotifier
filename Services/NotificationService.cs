@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -221,16 +222,57 @@ namespace BookNotifier.Services
 				}
 			};
 
-			StringContent content = new(
-				JsonSerializer.Serialize(discordPayload),
-				Encoding.UTF8,
-				"application/json");
+			string json = JsonSerializer.Serialize(discordPayload);
 
-			using HttpResponseMessage response = await Client.PostAsync(webhook, content);
+			const int maxRetries = 5;
 
-			Log(response.IsSuccessStatusCode
-				? $"[notification] Sent: {payload.Event} | {payload.Title}"
-				: $"[notification] Failed: {payload.Event} | {payload.Title} | {response.StatusCode}");
+			for (int attempt = 1; attempt <= maxRetries; attempt++)
+			{
+				using StringContent content = new(json, Encoding.UTF8, "application/json");
+				using HttpResponseMessage response = await Client.PostAsync(webhook, content);
+
+				if (response.IsSuccessStatusCode)
+				{
+					Log($"[notification] Sent: {payload.Event} | {payload.Title}");
+					return;
+				}
+
+				// Discord always tells you how long to wait on a 429, either via the Retry-After
+				// header (global limit) or retry_after in the JSON body (per-route limit) — see
+				// https://docs.discord.com/developers/topics/rate-limits
+				bool isRateLimited = response.StatusCode == HttpStatusCode.TooManyRequests;
+				bool isServerError = (int)response.StatusCode >= 500;
+
+				if ((isRateLimited || isServerError) && attempt < maxRetries)
+				{
+					TimeSpan delay = isRateLimited
+						? await GetRateLimitDelayAsync(response)
+						: TimeSpan.FromSeconds(Math.Pow(2, attempt));
+
+					LogError($"[notification] {(isRateLimited ? "Rate limited (429)" : $"Server error ({(int)response.StatusCode})")} sending {payload.Event}, retrying in {delay.TotalSeconds:F1}s (attempt {attempt}/{maxRetries})");
+					await Task.Delay(delay);
+					continue;
+				}
+
+				Log($"[notification] Failed: {payload.Event} | {payload.Title} | {response.StatusCode}");
+				return;
+			}
+		}
+
+		private static async Task<TimeSpan> GetRateLimitDelayAsync(HttpResponseMessage response)
+		{
+			if (response.Headers.RetryAfter?.Delta is { } delta)
+				return delta;
+
+			try
+			{
+				using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+				if (document.RootElement.TryGetProperty("retry_after", out JsonElement retryAfter))
+					return TimeSpan.FromSeconds(retryAfter.GetDouble());
+			}
+			catch { /* fall through to default */ }
+
+			return TimeSpan.FromSeconds(1);
 		}
 
 		// ----------------------------------------

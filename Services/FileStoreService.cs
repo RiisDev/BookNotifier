@@ -50,15 +50,6 @@ namespace BookNotifier.Services
 		public static Task<List<GoodReadsKnownBook>> LoadGoodReadsKnownBookRecordsAsync() =>
 			ReadAsync<List<GoodReadsKnownBook>>("goodreads.json", []);
 
-		public static async Task<HashSet<string>> LoadGoodReadsKnownBooksAsync()
-		{
-			List<GoodReadsKnownBook> books = await LoadGoodReadsKnownBookRecordsAsync();
-
-			return books
-				.Select(CreateGoodReadsKey)
-				.ToHashSet(StringComparer.OrdinalIgnoreCase);
-		}
-
 		public static Task SaveGoodReadsKnownBooksAsync(IEnumerable<GoodReadsKnownBook> books)
 		{
 			List<GoodReadsKnownBook> distinct = books

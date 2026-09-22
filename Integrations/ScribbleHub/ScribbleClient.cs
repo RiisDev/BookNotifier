@@ -51,6 +51,7 @@ namespace BookNotifier.Integrations.ScribbleHub
 
 				Log("Reading scribble data...");
 				List<ScribbleSaveBookRoot> currentBooks = await FileStoreService.LoadScribbleHubAsync();
+				bool isFirstRun = currentBooks.Count == 0;
 				Log($"Found: {currentBooks.Count} cached books");
 
 				Log("Fetching new scribble data...");
@@ -75,6 +76,8 @@ namespace BookNotifier.Integrations.ScribbleHub
 
 					if (cachedStory is null)
 					{
+						if (isFirstRun) continue;
+
 						Log($"[scribblehub] New story: {story.Name} -> {story.Chapters.Count} chapters");
 						await NotificationService.SendNewScribbleStoryAsync(story.Name, story.Link);
 						continue;
@@ -90,6 +93,7 @@ namespace BookNotifier.Integrations.ScribbleHub
 					}
 
 					if (latestCachedChapter is not null && latestCurrentChapter.Id == latestCachedChapter.Id) continue;
+					if (isFirstRun) continue;
 
 					Log($"[scribblehub] New chapter: {story.Name} -> {latestCurrentChapter.Title}");
 					await NotificationService.SendNewScribbleChapterAsync(story.Name, story.Link, latestCurrentChapter.Title, latestCurrentChapter.Link);

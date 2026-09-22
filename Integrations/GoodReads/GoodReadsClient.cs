@@ -17,14 +17,37 @@ namespace BookNotifier.Integrations.GoodReads
 
 		private static string NormalizeUrl(string href) => new Uri(BaseUri, href).GetLeftPart(UriPartial.Path);
 
-		private readonly HttpClient _client = ScraperHttpClient.Create(
-			"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0 GoodReadsWatcher/1.0",
-			TimeSpan.FromSeconds(15));
+		private readonly HttpClient _client = ScraperHttpClient.Create(timeout: TimeSpan.FromSeconds(15));
+
+		private readonly string _flareSessionId = $"booknot-goodreads-{Guid.NewGuid():N}";
+		private bool _flareSessionInitiated;
 
 		public void Dispose()
 		{
 			GC.SuppressFinalize(this);
 			_client.Dispose();
+		}
+
+		public async Task DestroyFlareSessionIfNeededAsync()
+		{
+			if (_flareSessionInitiated)
+				await Program.FlareClient.DestroySessionAsync(_flareSessionId);
+		}
+
+		private async Task<string> GetStringViaFlareSolverAsync(string url)
+		{
+			if (!_flareSessionInitiated)
+			{
+				await Program.FlareClient.InitiateSession(_flareSessionId);
+				_flareSessionInitiated = true;
+			}
+
+			(string content, int statusCode, _) = await Program.FlareClient.GetSolver(url, _flareSessionId);
+
+			if (statusCode != 200 || content.Contains("AwsWafIntegration", StringComparison.Ordinal))
+				throw new HttpRequestException($"FlareSolver fallback failed for {url} (status {statusCode})");
+
+			return content;
 		}
 
 		public async Task<IReadOnlyList<GoodReadsBookDetails>> GetReadingListBooksAsync(string userId, string? shelf = null)
@@ -335,6 +358,12 @@ namespace BookNotifier.Integrations.GoodReads
 		{
 			(string content, HttpStatusCode statusCode) = await HttpRetry.GetWithRetryAsync(_client, url, maxRetries, cancellationToken);
 
+			if (content.Contains("AwsWafIntegration", StringComparison.Ordinal))
+			{
+				Log($"[goodreads] Hit AWS WAF challenge for {url}, falling back to FlareSolver...");
+				return await GetStringViaFlareSolverAsync(url);
+			}
+
 			if (!HttpRetry.IsSuccess(statusCode))
 				throw new HttpRequestException($"Request failed with status code {(int)statusCode} for {url}");
 
@@ -365,9 +394,6 @@ namespace BookNotifier.Integrations.GoodReads
 					.Where(kb => kb.AuthorName == author.Name && kb.SeriesName is null)
 					.ToList();
 
-				// An author fetch returning 0 books is more likely a failed/empty request than the
-				// author actually having nothing published — keep the cached entries instead of
-				// silently dropping them.
 				if (books.Count == 0 && existingAuthorBooks.Count > 0)
 				{
 					LogError($"[goodreads] Fetched 0 books for {author.Name} but {existingAuthorBooks.Count} are cached, keeping cache.");
@@ -488,8 +514,6 @@ namespace BookNotifier.Integrations.GoodReads
 				}
 			}
 
-			// An author missing entirely from this run's reading list is more likely a failed/empty
-			// request than every one of their books being un-shelved — keep the cached entries.
 			foreach (GoodReadsKnownBook missing in knownBookRecords.Where(kb => !processedAuthors.Contains(kb.AuthorName)))
 			{
 				LogError($"[goodreads] Author '{missing.AuthorName}' missing from this run's reading list, keeping cached entry.");

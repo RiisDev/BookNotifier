@@ -123,23 +123,30 @@ namespace BookNotifier
 		{
 			using GoodReadsClient sdk = new();
 
-			IReadOnlyList<GoodReadsBookDetails> readingListData =
-				await sdk.GetReadingListBooksAsync(
-					Environment.GetEnvironmentVariable("GOODREADS_USER_ID")
-						?? throw new InvalidOperationException("Missing GOODREADS_USER_ID environment variable."),
-					Environment.GetEnvironmentVariable("GOODREADS_SHELF_TAG")
-						?? throw new InvalidOperationException("Missing GOODREADS_SHELF_TAG environment variable.")
-				);
-
-			Dictionary<string, List<GoodReadsBook>> authorBooks = [];
-
-			foreach (GoodReadsAuthor author in readingListData.Select(x => x.Author).DistinctBy(x => x.Name))
+			try
 			{
-				List<GoodReadsBook> books = await sdk.GetAuthorsBooks(author.Url);
-				authorBooks[author.Name] = books;
-			}
+				IReadOnlyList<GoodReadsBookDetails> readingListData =
+					await sdk.GetReadingListBooksAsync(
+						Environment.GetEnvironmentVariable("GOODREADS_USER_ID")
+							?? throw new InvalidOperationException("Missing GOODREADS_USER_ID environment variable."),
+						Environment.GetEnvironmentVariable("GOODREADS_SHELF_TAG")
+							?? throw new InvalidOperationException("Missing GOODREADS_SHELF_TAG environment variable.")
+					);
 
-			await sdk.RunAsync(readingListData, authorBooks);
+				Dictionary<string, List<GoodReadsBook>> authorBooks = [];
+
+				foreach (GoodReadsAuthor author in readingListData.Select(x => x.Author).DistinctBy(x => x.Name))
+				{
+					List<GoodReadsBook> books = await sdk.GetAuthorsBooks(author.Url);
+					authorBooks[author.Name] = books;
+				}
+
+				await sdk.RunAsync(readingListData, authorBooks);
+			}
+			finally
+			{
+				await sdk.DestroyFlareSessionIfNeededAsync();
+			}
 		}
 
 		private static async Task RunScribbleHubAsync()

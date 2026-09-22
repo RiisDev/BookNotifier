@@ -5,7 +5,6 @@ using System.Text;
 using BookNotifier.Services;
 using LiteroticaApi.Api;
 using LiteroticaApi.AuthClientData;
-using LiteroticaApi.AuthClientData.DataObjects;
 using LiteroticaApi.DataObjects;
 
 namespace BookNotifier.Integrations.Literotica
@@ -72,6 +71,7 @@ namespace BookNotifier.Integrations.Literotica
 				.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 			LiteroticaKnownData known = await FileStoreService.LoadLiteroticaAsync();
+			bool isFirstRun = known.Works.Count == 0 && known.Authors.Count == 0;
 			Dictionary<string, LiteroticaKnownWork> knownWorksByKey = known.Works
 				.ToDictionary(static w => WorkKey(w.Author, w.Title), StringComparer.OrdinalIgnoreCase);
 
@@ -85,6 +85,8 @@ namespace BookNotifier.Integrations.Literotica
 					Log($"[literotica] Failed to retrieve author data for {newAuthorUsername}, skipping.");
 					continue;
 				}
+
+				if (isFirstRun) continue;
 
 				Log($"[literotica] New author favourited: {newAuthorUsername}");
 				await NotificationService.SendNewLitAuthorAsync(
@@ -137,13 +139,15 @@ namespace BookNotifier.Integrations.Literotica
 							continue;
 						}
 
-						Log($"[literotica] New story found: {title} by {authorUsername}");
-
 						DateTime publishedAt = DateTime.TryParseExact(dateApprove, "MM/dd/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed)
 							? parsed
 							: DateTime.UtcNow;
 
 						chapters.Add(new LiteroticaKnownChapter(title, chapterUrl, publishedAt));
+
+						if (isFirstRun) continue;
+
+						Log($"[literotica] New story found: {title} by {authorUsername}");
 						await NotificationService.SendNewLitStoryAsync(authorUsername, title, chapterUrl);
 					}
 
