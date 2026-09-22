@@ -59,6 +59,8 @@ namespace BookNotifier.Integrations.Literotica
 			Log("[literotica] Running watcher...");
 
 			IReadOnlyList<Author> favoriteAuthors = await GetAllFavoriteAuthorsAsync();
+			Log($"[literotica] Found {favoriteAuthors.Count} favourited author(s).");
+
 			if (favoriteAuthors.Count <= 0)
 			{
 				Log("[literotica] Failed to retrieve favourite authors, skipping watcher run.");
@@ -72,10 +74,15 @@ namespace BookNotifier.Integrations.Literotica
 
 			LiteroticaKnownData known = await FileStoreService.LoadLiteroticaAsync();
 			bool isFirstRun = known.Works.Count == 0 && known.Authors.Count == 0;
+			Log($"[literotica] Cached: {known.Works.Count} work(s) across {known.Authors.Count} author(s). IsFirstRun: {isFirstRun}");
+
 			Dictionary<string, LiteroticaKnownWork> knownWorksByKey = known.Works
 				.ToDictionary(static w => WorkKey(w.Author, w.Title), StringComparer.OrdinalIgnoreCase);
 
-			foreach (string newAuthorUsername in currentAuthorUsernames.Except(known.Authors, StringComparer.OrdinalIgnoreCase))
+			string[] newAuthorUsernames = [.. currentAuthorUsernames.Except(known.Authors, StringComparer.OrdinalIgnoreCase)];
+			Log($"[literotica] {newAuthorUsernames.Length} newly favourited author(s) to check.");
+
+			foreach (string newAuthorUsername in newAuthorUsernames)
 			{
 				await Task.Delay(Random.Shared.Next(1000, 3001));
 
@@ -97,9 +104,14 @@ namespace BookNotifier.Integrations.Literotica
 
 			List<LiteroticaKnownWork> updatedWorks = [];
 			HashSet<string> touchedWorkKeys = [];
+			int newChapterCount = 0;
+			int authorIndex = 0;
 
 			foreach (string authorUsername in currentAuthorUsernames)
 			{
+				authorIndex++;
+				Log($"[literotica] [{authorIndex}/{currentAuthorUsernames.Count}] Fetching works for {authorUsername}...");
+
 				await Task.Delay(Random.Shared.Next(1000, 3001));
 
 				IReadOnlyList<StoryDatum> works;
@@ -112,6 +124,8 @@ namespace BookNotifier.Integrations.Literotica
 					LogError($"[literotica] Failed to retrieve works for {authorUsername}, skipping. {ex.Message}");
 					continue;
 				}
+
+				Log($"[literotica] [{authorIndex}/{currentAuthorUsernames.Count}] {authorUsername} has {works.Count} work(s).");
 
 				foreach (StoryDatum work in works)
 				{
@@ -144,6 +158,7 @@ namespace BookNotifier.Integrations.Literotica
 							: DateTime.UtcNow;
 
 						chapters.Add(new LiteroticaKnownChapter(title, chapterUrl, publishedAt));
+						newChapterCount++;
 
 						if (isFirstRun) continue;
 
@@ -156,7 +171,10 @@ namespace BookNotifier.Integrations.Literotica
 			}
 
 			// Carry over works for authors that failed to fetch or were unfollowed this cycle.
-			updatedWorks.AddRange(known.Works.Where(w => !touchedWorkKeys.Contains(WorkKey(w.Author, w.Title))));
+			LiteroticaKnownWork[] carriedOverWorks = [.. known.Works.Where(w => !touchedWorkKeys.Contains(WorkKey(w.Author, w.Title)))];
+			if (carriedOverWorks.Length > 0)
+				Log($"[literotica] Carrying over {carriedOverWorks.Length} cached work(s) not touched this cycle.");
+			updatedWorks.AddRange(carriedOverWorks);
 
 			// "hiatus" per author = no chapter published in the last month.
 			DateTime staleThreshold = DateTime.UtcNow.AddDays(-30);
@@ -179,7 +197,7 @@ namespace BookNotifier.Integrations.Literotica
 				Works = updatedWorks
 			});
 
-			Log("[literotica] Successfully ran watcher!");
+			Log($"[literotica] Successfully ran watcher! {newChapterCount} new chapter(s), {updatedWorks.Count} total work(s) saved.");
 		}
 
 		private static string WorkKey(string author, string title) => $"{author}|{title}";
@@ -189,14 +207,23 @@ namespace BookNotifier.Integrations.Literotica
 			List<Author> authors = [];
 
 			FavouriteAuthor? page = await UsersApi.GetFavoriteAuthorsAsync(_username, 1, 200);
-			if (page?.Data is null) return authors;
+			if (page?.Data is null)
+			{
+				Log("[literotica] Favourite authors page 1 returned no data.");
+				return authors;
+			}
 
 			authors.AddRange(page.Data);
+			Log($"[literotica] Favourite authors page 1/{page.LastPage ?? 1} ({page.Data.Count} author(s)).");
 
 			for (int pageNumber = 2; pageNumber <= (page.LastPage ?? 1); pageNumber++)
 			{
 				FavouriteAuthor? nextPage = await UsersApi.GetFavoriteAuthorsAsync(_username, pageNumber, 200);
-				if (nextPage?.Data != null) authors.AddRange(nextPage.Data);
+				if (nextPage?.Data != null)
+				{
+					authors.AddRange(nextPage.Data);
+					Log($"[literotica] Favourite authors page {pageNumber}/{page.LastPage ?? 1} ({nextPage.Data.Count} author(s)).");
+				}
 			}
 
 			return authors;
